@@ -1,0 +1,52 @@
+# CLAUDE.md
+
+## Purpose
+`automation-core` is the shared Python library used by every project in the Inspired-Automation team. It provides standard logging setup, configuration loading from `team.yaml` and `config.yaml`, error collection, and notification dispatch (email via Microsoft Graph or tickets via Freshservice).
+
+The goal is to remove ~500 lines of boilerplate from every project. All projects behave identically when something goes wrong because they all go through this library.
+
+## Tech Stack
+- Python 3.14
+- `PyYAML` for config loading (`yaml.safe_load` only)
+- `requests` for HTTP calls to Graph and Freshservice
+- `msal` for Microsoft Graph token acquisition
+- Pure standard library `logging` for logging configuration
+
+## Databases
+- None. This library does not touch databases. Database access is the responsibility of the projects that use it.
+
+## External Integrations
+- **Microsoft Graph** for sending error notification emails
+- **Freshservice** for raising error notification tickets
+
+## Configuration
+- Reads `team.yaml` from `I:\BPI\Automation Team\Tools\Scripts\yaml\team.yaml` (required)
+- Reads `config/config.yaml` from the consuming project's root (optional)
+- The library itself has no config file
+
+## Migrations
+| File | DEV applied | PROD applied |
+|------|-------------|--------------|
+| _no migrations - library does not touch databases_ | | |
+
+## Key Business Logic
+- **Critical errors:** uncaught exceptions in `collect_errors` context manager → immediate notification with traceback → re-raise.
+- **Non-fatal errors:** `errors.add(...)` → written to log immediately + held for end-of-run summary.
+- **Notification rules:**
+  - Zero errors → no notification.
+  - Non-fatal errors → summary email/ticket at end of run.
+  - Critical error → immediate email/ticket with traceback.
+- **Dev vs prod detection:** based on `Path.cwd()` vs `paths.production_root` in `team.yaml`. Override via `AUTOMATION_FORCE_NOTIFY=1` env var.
+
+## Known Gotchas
+- `team.yaml` path is hardcoded by design. If the location ever changes, this is a breaking change for every project.
+- If Graph or Freshservice API calls fail when dispatching a notification, the library logs loudly but does not crash the consuming project.
+
+## Change Log
+- YYYY-MM-DD: Initial scaffold from spec.
+
+## Outstanding TODOs
+- Implement v1.0.0 per `lib-core-spec.md`.
+- Add unit tests for config merging, error collection, dev/prod detection.
+- Add integration tests with mocked Graph and Freshservice endpoints.
+- Tag and release v1.0.0.
