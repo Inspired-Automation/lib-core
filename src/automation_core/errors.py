@@ -85,3 +85,4 @@ def _maybe_dispatch(
     from .notifications import dispatch_notification  # noqa: PLC0415
 
     dispatch_notification(ctx, errors, is_critical=is_critical, exc_info=exc_info)
+    logging.info("automation_core: notification dispatched via %s", ctx.notification_method)
