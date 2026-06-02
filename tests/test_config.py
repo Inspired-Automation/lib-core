@@ -20,7 +20,17 @@ TEAM_DATA = {
         "tenant_id": "tid",
         "sender_address": "bot@example.com",
     },
-    "freshservice": {"api_key": "key", "domain": "example.freshservice.com"},
+    "freshservice": {
+        "api_key": "key",
+        "domain": "example.freshservice.com",
+        "defaults": {
+            "workspace_id": 2,
+            "group_id": 123,
+            "requester_email": "requester@example.com",
+            "type": "Incident",
+            "tags": ["automation", "bpi"],
+        },
+    },
     "notifications": {"default_recipient": "team@example.com"},
     "paths": {"production_root": r"I:\BPI\Automation Team\Automated Processes"},
 }
@@ -91,3 +101,27 @@ def test_project_config_does_not_clobber_sibling_keys(tmp_path: Path):
         config = load_config()
     assert config["notifications"]["default_recipient"] == "team@example.com"
     assert config["graph"]["client_id"] == "cid"
+
+
+def test_project_config_overrides_nested_freshservice_default(tmp_path: Path):
+    team_file = _patch_team(tmp_path)
+    project_cfg_dir = tmp_path / "config"
+    project_cfg_dir.mkdir()
+    (project_cfg_dir / "config.yaml").write_text(
+        _yaml({"freshservice": {"defaults": {"group_id": 999}}}),
+        encoding="utf-8",
+    )
+    with (
+        patch("automation_core.config.TEAM_YAML_PATH", team_file),
+        patch("pathlib.Path.cwd", return_value=tmp_path),
+    ):
+        config = load_config()
+    defaults = config["freshservice"]["defaults"]
+    # Overridden nested value
+    assert defaults["group_id"] == 999
+    # Sibling defaults survive the deep-merge
+    assert defaults["workspace_id"] == 2
+    assert defaults["tags"] == ["automation", "bpi"]
+    # Sibling freshservice keys survive
+    assert config["freshservice"]["api_key"] == "key"
+    assert config["freshservice"]["domain"] == "example.freshservice.com"

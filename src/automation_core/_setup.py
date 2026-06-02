@@ -35,6 +35,12 @@ def setup(process_name: str) -> Context:
         or _config.get("notifications", {}).get("default_recipient", "")
     )
 
+    if notification_method == "freshservice":
+        # Lazy import avoids the _setup <-> notifications import cycle.
+        from .notifications import freshservice
+
+        freshservice.validate_defaults(_config)
+
     log_root_override: str | None = _config.get("logging", {}).get("log_root")
     if log_root_override:
         log_root = Path(log_root_override)

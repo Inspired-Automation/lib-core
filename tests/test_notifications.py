@@ -8,6 +8,7 @@ import pytest
 from automation_core.context import Context
 from automation_core.errors import ErrorCollector
 from automation_core.notifications import dispatch_notification
+from automation_core.notifications.freshservice import create_ticket, normalize_base_url
 
 
 def _ctx(method: str = "email", is_production: bool = True) -> Context:
@@ -27,7 +28,17 @@ CONFIG = {
         "tenant_id": "tid",
         "sender_address": "bot@example.com",
     },
-    "freshservice": {"api_key": "key", "domain": "example.freshservice.com"},
+    "freshservice": {
+        "api_key": "key",
+        "domain": "example.freshservice.com",
+        "defaults": {
+            "workspace_id": 2,
+            "group_id": 123,
+            "requester_email": "requester@example.com",
+            "type": "Incident",
+            "tags": ["automation", "bpi"],
+        },
+    },
     "notifications": {"default_recipient": "team@example.com"},
     "paths": {"production_root": r"I:\BPI\Automation Team\Automated Processes"},
 }
@@ -107,6 +118,73 @@ class TestFreshserviceDispatch:
             dispatch_notification(_ctx("freshservice"), _errors("err"), is_critical=False)
         body_html = mock_ticket.call_args[0][2]
         assert body_html.startswith("<pre>") and body_html.endswith("</pre>")
+
+
+class TestNormalizeBaseUrl:
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "domain.com",
+            "https://domain.com",
+            "https://domain.com/",
+            "https://domain.com/api/v2",
+        ],
+    )
+    def test_inputs_collapse_to_canonical_url(self, raw):
+        assert normalize_base_url(raw) == "https://domain.com/api/v2"
+
+
+class TestFreshserviceTicketPayload:
+    FS_CONFIG = {
+        "freshservice": {
+            "api_key": "key",
+            "domain": "example.freshservice.com",
+            "defaults": {
+                "workspace_id": 2,
+                "group_id": 123,
+                "requester_email": "requester@example.com",
+                "type": "Incident",
+                "tags": ["automation", "bpi"],
+            },
+        },
+    }
+
+    def _post_payload(self, is_critical: bool) -> dict:
+        with patch(
+            "automation_core.notifications.freshservice.requests.post"
+        ) as mock_post:
+            create_ticket(
+                self.FS_CONFIG, "subj", "<pre>body</pre>", is_critical=is_critical
+            )
+        return mock_post.call_args.kwargs["json"]
+
+    def test_critical_payload_has_critical_tag(self):
+        payload = self._post_payload(is_critical=True)
+        assert "critical" in payload["tags"]
+
+    def test_summary_payload_has_summary_tag(self):
+        payload = self._post_payload(is_critical=False)
+        assert "summary" in payload["tags"]
+
+    def test_configured_tags_preserved(self):
+        payload = self._post_payload(is_critical=True)
+        assert "automation" in payload["tags"]
+        assert "bpi" in payload["tags"]
+
+    def test_payload_uses_requester_email_and_default_fields(self):
+        payload = self._post_payload(is_critical=False)
+        assert payload["email"] == "requester@example.com"
+        assert payload["workspace_id"] == 2
+        assert payload["group_id"] == 123
+        assert payload["type"] == "Incident"
+
+    def test_configured_tag_list_not_mutated_across_calls(self):
+        self._post_payload(is_critical=True)
+        self._post_payload(is_critical=False)
+        assert self.FS_CONFIG["freshservice"]["defaults"]["tags"] == [
+            "automation",
+            "bpi",
+        ]
 
 
 class TestMSALErrorHandling:

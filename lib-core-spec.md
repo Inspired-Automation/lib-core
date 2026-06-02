@@ -39,6 +39,12 @@ graph:
 freshservice:
   api_key: "..."
   domain: "..."
+  defaults:            # required when notifications.method is "freshservice"
+    workspace_id: 2                 # int
+    group_id: 123                   # int
+    requester_email: "bpiautomation@inspiredenergy.co.uk"  # str
+    type: "Incident"               # str
+    tags: ["automation", "bpi"]    # list of str
 
 notifications:
   default_recipient: "bpiautomation@inspiredenergy.co.uk"
@@ -46,6 +52,11 @@ notifications:
 paths:
   production_root: "I:\\BPI\\Automation Team\\Automated Processes"
 ```
+
+The `freshservice.defaults` block is **required** whenever any project sets
+`notifications.method: "freshservice"`. All five fields (`workspace_id`,
+`group_id`, `requester_email`, `type`, `tags`) must be present and non-empty;
+otherwise `setup()` raises `ConfigurationError`, naming the missing field.
 
 ### 2.2 Project config (optional)
 
@@ -185,9 +196,17 @@ Notes:
 
 ### 4.5 Freshservice notification format
 
-- Creates a ticket via Freshservice API
-- Subject and body match the email format
-- Priority: High for critical, Low for summary
+- Creates a ticket via the Freshservice API at `<base>/tickets`, where `<base>` is
+  derived from `freshservice.domain` by `normalize_base_url()` (strips whitespace,
+  a leading `http(s)://` scheme, trailing slashes, and a trailing `/api/v2`), so any
+  reasonable domain format resolves to `https://<host>/api/v2`.
+- Subject and body match the email format.
+- Priority: High (`2`) for critical, Low (`4`) for summary.
+- Fields populated from the required `freshservice.defaults` block:
+  - `workspace_id`, `group_id`, `type` — set directly from defaults.
+  - `email` — set from `requester_email`.
+  - `tags` — the configured `tags` list plus one appended tag: `critical` for
+    critical tickets, `summary` for non-fatal summary tickets.
 
 ---
 

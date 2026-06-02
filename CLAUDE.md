@@ -43,6 +43,7 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 - If Graph or Freshservice API calls fail when dispatching a notification, the library logs loudly but does not crash the consuming project.
 
 ## Change Log
+- 2026-06-02: Added required `freshservice.defaults` block (validated at setup) and normalised Freshservice URL handling; released v1.2.0.
 - 2026-06-01: Added `notifications.enabled` (auto/always/never) to control dispatch; released v1.1.0.
 - 2026-06-01: Implemented v1.0.0 per `lib-core-spec.md`.
 - 2026-06-01: Initial scaffold from spec.

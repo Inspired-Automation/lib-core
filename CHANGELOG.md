@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-06-02
+
+### Added
+- Required `freshservice.defaults` block in `team.yaml` (`workspace_id`, `group_id`,
+  `requester_email`, `type`, `tags`), validated at setup when `notifications.method`
+  is `freshservice`. Its values populate the ticket payload (`workspace_id`,
+  `group_id`, `type`, `email` from `requester_email`, and `tags`), with a `critical`
+  or `summary` tag appended per ticket. Missing or empty fields raise
+  `ConfigurationError` at setup, naming the offending field.
+
+### Fixed
+- Freshservice API URL construction now normalises the configured `freshservice.domain`
+  via `normalize_base_url()` (strips surrounding whitespace, a leading `http(s)://`
+  scheme, trailing slashes, and a trailing `/api/v2`), so any reasonable input format
+  produces a valid URL instead of a malformed one.
+
 ## [1.1.0] - 2026-06-01
 
 ### Added
