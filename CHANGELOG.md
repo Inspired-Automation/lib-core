@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-06-02
+   
+   ### Added
+   - `automation_core: notification dispatched via <method> for <process_name>` log line after successful dispatch, so it's clear from logs whether notification was actually sent.
+   
+   ### Removed
+   - Internal debug print statements left over from troubleshooting.
+
 ## [1.2.0] - 2026-06-02
 
 ### Added
