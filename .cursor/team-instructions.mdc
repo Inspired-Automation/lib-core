@@ -5,7 +5,7 @@ These instructions apply to all AI-assisted work within the BPI Automation Team.
 ## 1. Languages
 
 - Python and SQL are the defaults. Use them unless the user explicitly requests another language.
-- Target **Python 3.14**.
+- Target **Python 3.13 or later**.
 - Use the SQL dialect appropriate to the target engine (T-SQL for MSSQL, MySQL dialect for Sugar).
 - If the user explicitly requests another language for a task (PowerShell, VBA, Node-RED, JavaScript, etc.), follow that request, but still apply the rest of these rules where they translate (no hardcoded credentials, structured logging, config-driven paths, CLAUDE.md maintained, branding respected).
 

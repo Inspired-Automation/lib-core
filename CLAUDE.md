@@ -6,7 +6,7 @@
 The goal is to remove ~500 lines of boilerplate from every project. All projects behave identically when something goes wrong because they all go through this library.
 
 ## Tech Stack
-- Python 3.14
+- Python 3.13+
 - `PyYAML` for config loading (`yaml.safe_load` only)
 - `requests` for HTTP calls to Graph and Freshservice
 - `msal` for Microsoft Graph token acquisition
@@ -43,6 +43,7 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 - If Graph or Freshservice API calls fail when dispatching a notification, the library logs loudly but does not crash the consuming project.
 
 ## Change Log
+- 2026-07-08: Lowered minimum Python from 3.14 to 3.13 (`requires-python = ">=3.13"`); fixed stale `__version__`; released v1.2.2.
 - 2026-06-02: Added dispatch method to logging and removed debug ststements; released v1.2.1
 - 2026-06-02: Added required `freshservice.defaults` block (validated at setup) and normalised Freshservice URL handling; released v1.2.0.
 - 2026-06-01: Added `notifications.enabled` (auto/always/never) to control dispatch; released v1.1.0.

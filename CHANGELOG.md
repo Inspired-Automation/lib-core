@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-07-08
+
+### Changed
+- Lowered the minimum supported Python version from 3.14 to 3.13
+  (`requires-python = ">=3.13"`). No code changes were required; the library
+  uses no 3.14-only features.
+
+### Fixed
+- `automation_core.__version__` was still `1.2.0`; it now matches the package
+  version again.
+
 ## [1.2.1] - 2026-06-02
    
    ### Added
