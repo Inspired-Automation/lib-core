@@ -39,24 +39,53 @@ Before tagging, confirm:
    git push --tags
    ```
 
-3. Draft the GitHub release:
+3. Build the wheel (requires the `build` package: `py -m pip install build`):
+   ```powershell
+   py -m build --wheel --outdir dist
+   ```
+   This produces `dist\automation_core-X.Y.Z-py3-none-any.whl`. The filename must
+   match the version being released; if it doesn't, the version bump in
+   `pyproject.toml` was missed.
+
+4. Draft the GitHub release:
    - Go to https://github.com/Inspired-Automation/lib-core/releases
    - Click **Draft a new release**
    - **Choose a tag:** select `vX.Y.Z`
    - **Release title:** `vX.Y.Z`
    - **Description:** copy the matching `## [X.Y.Z]` block from `CHANGELOG.md`
+   - **Attach the wheel:** drag `dist\automation_core-X.Y.Z-py3-none-any.whl` into
+     the assets box. This step is required — projects that install by wheel URL
+     get a 404 without it.
    - Leave **Set as the latest release** ticked
    - Click **Publish release**
 
 ## Post-release verification
 
-1. The Releases page should show `vX.Y.Z` with the "Latest" badge.
+1. The Releases page should show `vX.Y.Z` with the "Latest" badge and the
+   `automation_core-X.Y.Z-py3-none-any.whl` asset attached.
 2. From a clean folder, confirm the package installs from GitHub and the version is correct:
    ```powershell
    pip install git+https://github.com/Inspired-Automation/lib-core.git@vX.Y.Z --break-system-packages
    python -c "import automation_core; print(automation_core.__version__)"
    ```
    Should print `X.Y.Z`.
+3. Confirm the wheel asset installs too:
+   ```powershell
+   pip install https://github.com/Inspired-Automation/lib-core/releases/download/vX.Y.Z/automation_core-X.Y.Z-py3-none-any.whl --break-system-packages
+   ```
+
+## Pinning in consuming projects
+
+Either line works in a project's `requirements.txt`:
+
+```
+# From the git tag (needs git on the machine; pip builds the package itself)
+automation-core @ git+https://github.com/Inspired-Automation/lib-core.git@vX.Y.Z
+
+# From the release wheel asset (faster, no git needed; requires the wheel
+# to have been uploaded to the release)
+automation-core @ https://github.com/Inspired-Automation/lib-core/releases/download/vX.Y.Z/automation_core-X.Y.Z-py3-none-any.whl
+```
 
 ## After releasing
 
