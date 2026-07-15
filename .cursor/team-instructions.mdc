@@ -187,7 +187,7 @@ Configuration is split across two files, both loaded automatically by the shared
 
 ### Team-wide config (required, shared across all projects)
 
-Location: `I:\BPI\Automation Team\Tools\Scripts\yaml\team.yaml`
+Location: `\\inspiredenergysolutions.local\DFS\Public\!IE\BPI\Automation Team\Tools\Scripts\yaml\team.yaml`
 
 Holds credentials and team-wide defaults: Graph credentials, Freshservice credentials, default notification recipient, production root path. Rotated centrally; projects never copy or duplicate these values.
 

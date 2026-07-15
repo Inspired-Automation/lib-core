@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+- `TEAM_YAML_PATH` now uses the UNC share
+  (`\\inspiredenergysolutions.local\DFS\Public\!IE\...`) instead of the
+  mapped `I:` drive letter, so config loading works without a drive mapping.
+
 ## [1.2.2] - 2026-07-08
 
 ### Changed

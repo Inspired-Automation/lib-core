@@ -20,7 +20,7 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 - **Freshservice** for raising error notification tickets
 
 ## Configuration
-- Reads `team.yaml` from `I:\BPI\Automation Team\Tools\Scripts\yaml\team.yaml` (required)
+- Reads `team.yaml` from `\\inspiredenergysolutions.local\DFS\Public\!IE\BPI\Automation Team\Tools\Scripts\yaml\team.yaml` (required)
 - Reads `config/config.yaml` from the consuming project's root (optional)
 - The library itself has no config file
 
@@ -43,6 +43,7 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 - If Graph or Freshservice API calls fail when dispatching a notification, the library logs loudly but does not crash the consuming project.
 
 ## Change Log
+- 2026-07-15: `TEAM_YAML_PATH` switched from mapped `I:` drive to UNC path under `\\inspiredenergysolutions.local\DFS\Public\!IE\...`.
 - 2026-07-08: Releases now include a built wheel as a GitHub release asset, so projects can pin by wheel URL; RELEASING.md updated.
 - 2026-07-08: Lowered minimum Python from 3.14 to 3.13 (`requires-python = ">=3.13"`); fixed stale `__version__`; released v1.2.2.
 - 2026-06-02: Added dispatch method to logging and removed debug statements; released v1.2.1

@@ -4,7 +4,9 @@ from pathlib import Path
 
 import yaml
 
-TEAM_YAML_PATH = Path(r"I:\BPI\Automation Team\Tools\Scripts\yaml\team.yaml")
+TEAM_YAML_PATH = Path(
+    r"\\inspiredenergysolutions.local\DFS\Public\!IE\BPI\Automation Team\Tools\Scripts\yaml\team.yaml"
+)
 
 
 class ConfigurationError(RuntimeError):
@@ -25,7 +27,7 @@ def load_config() -> dict:
     if not TEAM_YAML_PATH.exists():
         raise ConfigurationError(
             f"Required team config not found: {TEAM_YAML_PATH}\n"
-            "Ensure the BPI Automation Team network drive is mapped."
+            "Ensure the BPI Automation Team network share is accessible."
         )
     with TEAM_YAML_PATH.open(encoding="utf-8") as fh:
         config: dict = yaml.safe_load(fh) or {}
