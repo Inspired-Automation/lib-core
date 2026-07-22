@@ -41,8 +41,11 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 ## Known Gotchas
 - `team.yaml` path is hardcoded by design. If the location ever changes, this is a breaking change for every project.
 - If Graph or Freshservice API calls fail when dispatching a notification, the library logs loudly but does not crash the consuming project.
+- Cross-project deployment note (not a lib-core dependency): consuming projects that pull `numpy` (usually transitively via pandas) should pin `numpy<2.4`. numpy 2.4.0 raised the x86-64 build baseline to x86-64-v2, so `import numpy` aborts with `RuntimeError: NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)` on generic/virtualised CPU models (seen on an RDS server). 2.3.x keeps the v1 baseline and has Python 3.14 wheels. Durable fix: have infra set the VM's CPU compatibility mode to a v2-capable model. First hit in `automation-lseg-data-refresh` (2026-07-22).
 
 ## Change Log
+- 2026-07-22: Added `Context.params` (run params from a `--job-file` job.json) and a machine-readable JSON meta block in notification bodies (wrapped in `---AUTOMATION-META-BEGIN/END---` markers for downstream flows); folded in the UNC `TEAM_YAML_PATH` change; released v1.3.0.
+- 2026-07-22: Documented a cross-project deployment gotcha (numpy 2.4 x86-64-v2 baseline crash on virtualised/RDS CPUs; pin `numpy<2.4`). Not a lib-core dependency — guidance for consuming projects. See Known Gotchas.
 - 2026-07-15: `TEAM_YAML_PATH` switched from mapped `I:` drive to UNC path under `\\inspiredenergysolutions.local\DFS\Public\!IE\...`.
 - 2026-07-08: Releases now include a built wheel as a GitHub release asset, so projects can pin by wheel URL; RELEASING.md updated.
 - 2026-07-08: Lowered minimum Python from 3.14 to 3.13 (`requires-python = ">=3.13"`); fixed stale `__version__`; released v1.2.2.

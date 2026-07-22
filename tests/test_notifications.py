@@ -99,6 +99,48 @@ class TestEmailDispatch:
         assert any("notification dispatch failed" in r.message for r in caplog.records)
 
 
+class TestMetaBlock:
+    def _body(self, is_critical: bool, errors: ErrorCollector) -> str:
+        with (
+            patch("automation_core.notifications._get_config", return_value=CONFIG),
+            patch("automation_core.notifications.email_graph.send") as mock_send,
+        ):
+            dispatch_notification(_ctx("email"), errors, is_critical=is_critical)
+        # send(config, recipient, subject, body)
+        return mock_send.call_args[0][3]
+
+    def _parse_meta(self, body: str) -> dict:
+        import json
+
+        from automation_core.notifications import META_BEGIN, META_END
+
+        start = body.index(META_BEGIN) + len(META_BEGIN)
+        end = body.index(META_END)
+        return json.loads(body[start:end])
+
+    def test_body_contains_parseable_meta_block(self):
+        ec = ErrorCollector()
+        ec.add("disk full", details={"drive": "C:"})
+        meta = self._parse_meta(self._body(False, ec))
+        assert meta["process"] == "TestProcess"
+        assert meta["severity"] == "error"
+        assert meta["is_critical"] is False
+        assert meta["error_count"] == 1
+        assert meta["errors"][0]["message"] == "disk full"
+        assert meta["errors"][0]["details"] == {"drive": "C:"}
+
+    def test_critical_meta_marks_severity(self):
+        meta = self._parse_meta(self._body(True, _errors()))
+        assert meta["severity"] == "critical"
+        assert meta["is_critical"] is True
+
+    def test_exception_is_stringified_not_object(self):
+        ec = ErrorCollector()
+        ec.add("boom", exception=ValueError("bad input"))
+        meta = self._parse_meta(self._body(False, ec))
+        assert meta["errors"][0]["exception"] == "ValueError: bad input"
+
+
 class TestFreshserviceDispatch:
     def test_create_ticket_called_high_priority_for_critical(self):
         with (

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import argparse
+import json
 import logging
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,7 +24,7 @@ def _get_config() -> dict:
     return _config
 
 
-def setup(process_name: str) -> Context:
+def setup(process_name: str, argv: list[str] | None = None) -> Context:
     global _config
     _config = load_config()
 
@@ -61,7 +64,13 @@ def setup(process_name: str) -> Context:
     log_file = dated_dir / f"{process_name}_{now.strftime('%Y%m%d_%H%M%S')}.log"
 
     configure(log_file, process_name)
-    logging.info("automation_core: setup complete for '%s'", process_name)
+
+    params = _read_job_params(argv)
+    logging.info(
+        "automation_core: setup complete for '%s' (%d run param(s))",
+        process_name,
+        len(params),
+    )
 
     return Context(
         process_name=process_name,
@@ -69,7 +78,41 @@ def setup(process_name: str) -> Context:
         is_production=is_production,
         notification_method=notification_method,
         notification_recipient=notification_recipient,
+        params=params,
     )
+
+
+def _read_job_params(argv: list[str] | None) -> dict:
+    """Return the run params the Control Room handed this bot.
+
+    The agent invokes bots as `python.exe <script> --job-file <path>`; that
+    job.json carries a "params" object set on the schedule, trigger or API
+    call. We parse only --job-file (parse_known_args leaves any arguments the
+    bot defines for itself untouched) and never fail the bot over params: a
+    hand run has no --job-file, and a missing or malformed file is logged and
+    treated as no params rather than killing an otherwise healthy run.
+    """
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--job-file")
+    args, _ = parser.parse_known_args(sys.argv[1:] if argv is None else argv)
+
+    if not args.job_file:
+        return {}
+
+    try:
+        with open(args.job_file, encoding="utf-8") as fh:
+            job = json.load(fh)
+        params = job.get("params", {})
+        if not isinstance(params, dict):
+            raise ValueError("job params is not a JSON object")
+        return params
+    except Exception:
+        _ilog.logger.warning(
+            "could not read run params from --job-file %r; continuing with none",
+            args.job_file,
+            exc_info=True,
+        )
+        return {}
 
 
 def _detect_production(config: dict) -> bool:

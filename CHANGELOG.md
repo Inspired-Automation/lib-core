@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-22
+
+### Added
+- `Context.params`: run parameters handed to a bot by the Control Room.
+  `setup()` reads a `--job-file <path>` argument off the command line (parsed
+  with `parse_known_args`, so a bot's own arguments are left untouched) and
+  exposes the job.json `params` object as `ctx.params`. Reading params never
+  fails a run: a hand run with no `--job-file`, a missing/malformed file, or a
+  non-object `params` value all yield an empty dict (the latter two are logged
+  as a warning). Read values with `ctx.params.get("name", default)`.
+- Machine-readable JSON meta block appended to every notification body, wrapped
+  in `---AUTOMATION-META-BEGIN---` / `---AUTOMATION-META-END---` markers so
+  downstream automations (e.g. a Power Automate flow) can extract and parse it
+  without scraping the human-readable text. Includes schema version, process
+  name, severity, error count, timestamp, host, user, log file path, and the
+  list of errors (exceptions stringified). Marker strings and schema version
+  (`META_SCHEMA_VERSION = 1`) are exported from `automation_core.notifications`.
+
 ### Changed
 - `TEAM_YAML_PATH` now uses the UNC share
   (`\\inspiredenergysolutions.local\DFS\Public\!IE\...`) instead of the
