@@ -105,7 +105,10 @@ ctx = setup("TenderWatcher")
 # ctx.is_production - bool, True if running from the production root
 # ctx.notification_method - "email" or "freshservice"
 # ctx.notification_recipient - resolved recipient address
+# ctx.params - dict of run parameters (see 3.4); {} when run without any
 ```
+
+`setup()` also accepts an optional `argv` argument (defaulting to `sys.argv[1:]`) used only to locate `--job-file` when reading run params; tests pass it explicitly.
 
 ### 3.2 `collect_errors(ctx) -> ErrorCollector`
 
@@ -139,6 +142,63 @@ def main():
 - `errors.has_errors` — boolean.
 
 Every call to `add` writes to the log file immediately, so a subsequent crash does not lose errors collected so far.
+
+### 3.4 Run parameters (`ctx.params` and `params.json`)
+
+The Control Room orchestrator can pass run parameters to a bot. It invokes the
+bot as `python.exe <script> --job-file <path>`, where `job.json` carries a
+`params` object. `setup()` reads that object and exposes it as `ctx.params`
+(a `dict`; `{}` when the bot is run by hand or scheduled without params). Read
+values with `ctx.params.get("name", default)`.
+
+Reading supplied params never fails a run: no `--job-file`, a missing or
+malformed job file, or a non-object `params` value all resolve to `{}` (the
+last two are logged as a warning). Only `--job-file` is consumed from the
+command line (via `parse_known_args`), so a bot's own CLI arguments are left
+untouched.
+
+#### `params.json` declarations file (repo root)
+
+So the orchestrator can render a parameter-entry GUI **before** starting a run,
+every bot that consumes run params must ship a `params.json` at its repo root
+declaring those params. The orchestrator reads it to build the form; `lib-core`
+reads it to validate what was actually supplied.
+
+It is a JSON object with a `params` array. Each entry:
+
+| Field         | Type    | Required | Meaning                                             |
+|---------------|---------|----------|-----------------------------------------------------|
+| `name`        | string  | yes      | The key the bot reads via `ctx.params.get(name)`.   |
+| `type`        | string  | yes      | One of `string`, `integer`, `number`, `boolean`.    |
+| `required`    | boolean | no (def `false`) | Whether the GUI must collect it.            |
+| `description` | string  | no (def `""`)    | Shown to the user in the GUI.               |
+
+```json
+{
+  "params": [
+    { "name": "region", "type": "string", "required": true, "description": "Region to process" },
+    { "name": "dry_run", "type": "boolean", "required": false, "description": "Skip writes" }
+  ]
+}
+```
+
+#### API and validation
+
+- `automation_core.load_param_definitions(root=None) -> list[dict]` — reads and
+  validates `params.json` under `root` (default `Path.cwd()`), returning the
+  normalised declarations (`name`, `type`, `required`, `description` always
+  present). Returns `[]` when the file is absent. Raises `ConfigurationError`
+  when the file exists but is malformed (bad JSON, no `params` array, unknown
+  `type`, missing `name`, duplicate names) — a bot developer error, treated the
+  same way as a bad `freshservice.defaults` block.
+- `setup()` calls this and validates `ctx.params` against the declarations,
+  logging each mismatch (missing required param, wrong type, undeclared key) as
+  a **warning**. Validation mismatches do **not** fail the run — the
+  orchestrator is the primary gate on required params — but a malformed
+  `params.json` does propagate from `setup()`.
+
+`bool` is not accepted where an `integer`/`number` is declared (despite being a
+subclass of `int` in Python), and vice versa.
 
 ---
 
@@ -237,6 +297,7 @@ lib-core/
 │   ├── config.py            # Loading team.yaml and config.yaml
 │   ├── logging_setup.py     # Logging configuration
 │   ├── context.py           # Context dataclass
+│   ├── params.py            # Run-param declarations (params.json) loader/validator
 │   ├── errors.py            # ErrorCollector and collect_errors
 │   ├── notifications/
 │   │   ├── __init__.py      # Dispatch by method

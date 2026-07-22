@@ -29,7 +29,32 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 |------|-------------|--------------|
 | _no migrations - library does not touch databases_ | | |
 
+## Run Parameters (`params.json` contract)
+Bots can receive run parameters from the Control Room orchestrator. The orchestrator invokes a bot as `python.exe <script> --job-file <path>`; that `job.json` carries a `params` object, which `setup()` exposes as `ctx.params` (read with `ctx.params.get("name", default)`).
+
+**The contract:** so the orchestrator can render a parameter-entry GUI *before* it starts a run, every bot that consumes run params must ship a `params.json` at its repo root declaring those params. The orchestrator reads this file to build the form; `lib-core` reads it to validate what was actually supplied.
+
+`params.json` — a JSON object with a `params` array; each entry has:
+- `name` (string, required) — the key the bot reads via `ctx.params.get(name)`.
+- `type` (string, required) — one of `string`, `integer`, `number`, `boolean`.
+- `required` (bool, optional, default `false`) — whether the GUI must collect it.
+- `description` (string, optional) — shown to the user in the GUI.
+
+```json
+{
+  "params": [
+    { "name": "region", "type": "string", "required": true, "description": "Region to process" },
+    { "name": "dry_run", "type": "boolean", "required": false, "description": "Skip writes" }
+  ]
+}
+```
+
+`lib-core` support (in `automation_core.params`): `load_param_definitions()` reads and validates `params.json` (raising `ConfigurationError` on a malformed file — a bot developer error, like a bad `freshservice.defaults` block), and `setup()` validates the supplied `ctx.params` against the declarations, logging any mismatch (missing required, wrong type, undeclared key) as a **warning** without failing the run — the orchestrator is the primary gate on required params.
+
+**Enforcing rule (propagate into each bot's CLAUDE.md via the Watchdog scaffold):** *When you add or change code in this bot that reads `ctx.params.get("...")`, you MUST create or update `params.json` at the repo root so every consumed param is declared with its `type` and `required` flag. A param the code reads but does not declare is a bug — the orchestrator will not prompt for it.*
+
 ## Key Business Logic
+- **Run params:** `ctx.params` populated from the `--job-file` job.json; each consumed param must be declared in the repo-root `params.json` (see Run Parameters). Reading params never fails a run; a malformed `params.json` does raise at setup.
 - **Critical errors:** uncaught exceptions in `collect_errors` context manager → immediate notification with traceback → re-raise.
 - **Non-fatal errors:** `errors.add(...)` → written to log immediately + held for end-of-run summary.
 - **Notification rules:**
@@ -44,6 +69,7 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 - Cross-project deployment note (not a lib-core dependency): consuming projects that pull `numpy` (usually transitively via pandas) should pin `numpy<2.4`. numpy 2.4.0 raised the x86-64 build baseline to x86-64-v2, so `import numpy` aborts with `RuntimeError: NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)` on generic/virtualised CPU models (seen on an RDS server). 2.3.x keeps the v1 baseline and has Python 3.14 wheels. Durable fix: have infra set the VM's CPU compatibility mode to a v2-capable model. First hit in `automation-lseg-data-refresh` (2026-07-22).
 
 ## Change Log
+- 2026-07-22: Added the `params.json` run-parameter declarations contract (repo-root file declaring each consumed param for the orchestrator's GUI), plus `automation_core.load_param_definitions()` and setup-time validation of supplied params. Documented in lib-core-spec.md §3.4; released v1.4.0.
 - 2026-07-22: Added `Context.params` (run params from a `--job-file` job.json) and a machine-readable JSON meta block in notification bodies (wrapped in `---AUTOMATION-META-BEGIN/END---` markers for downstream flows); folded in the UNC `TEAM_YAML_PATH` change; released v1.3.0.
 - 2026-07-22: Documented a cross-project deployment gotcha (numpy 2.4 x86-64-v2 baseline crash on virtualised/RDS CPUs; pin `numpy<2.4`). Not a lib-core dependency — guidance for consuming projects. See Known Gotchas.
 - 2026-07-15: `TEAM_YAML_PATH` switched from mapped `I:` drive to UNC path under `\\inspiredenergysolutions.local\DFS\Public\!IE\...`.

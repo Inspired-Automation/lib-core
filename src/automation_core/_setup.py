@@ -11,6 +11,7 @@ from . import _internal_log as _ilog
 from .config import load_config
 from .context import Context
 from .logging_setup import configure
+from .params import load_param_definitions, validate_params
 
 # Single config store per process. A second call to setup() overwrites the first,
 # which is intentional for the single-script-per-process use case. Test suites
@@ -66,6 +67,15 @@ def setup(process_name: str, argv: list[str] | None = None) -> Context:
     configure(log_file, process_name)
 
     params = _read_job_params(argv)
+
+    # If the bot declares its params in params.json, validate what was actually
+    # supplied against those declarations. A malformed params.json is a bot
+    # developer error and propagates; validation mismatches are logged loudly
+    # but do not fail the run (the orchestrator is the primary gate on params).
+    definitions = load_param_definitions()
+    for problem in validate_params(definitions, params):
+        _ilog.logger.warning("run param validation: %s", problem)
+
     logging.info(
         "automation_core: setup complete for '%s' (%d run param(s))",
         process_name,

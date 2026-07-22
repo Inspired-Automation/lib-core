@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-22
+
+### Added
+- `params.json` run-parameter declarations contract. A bot that consumes run
+  params (`ctx.params`) ships a `params.json` at its repo root declaring each
+  param (`name`, `type`, `required`, `description`) so the Control Room
+  orchestrator can render a parameter-entry GUI before a run.
+- `automation_core.load_param_definitions(root=None)`: reads and validates
+  `params.json`, returning normalised declarations (`[]` when absent, raises
+  `ConfigurationError` when malformed).
+- `setup()` now validates the supplied `ctx.params` against `params.json` when
+  present, logging any mismatch (missing required param, wrong type, undeclared
+  key) as a warning without failing the run.
+
 ## [1.3.0] - 2026-07-22
 
 ### Added
