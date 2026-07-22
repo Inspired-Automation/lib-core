@@ -25,7 +25,7 @@ The library reads two config files at startup:
 
 ### 2.1 Team-wide config (required)
 
-Path: `\\inspiredenergysolutions.local\DFS\Public\!IE\BPI\Automation Team\Tools\Scripts\yaml\team.yaml`
+Path: `\\inspiredenergysolutions.local\DFS\Public\!IES\BPI\Automation Team\Tools\Scripts\yaml\team.yaml`
 
 Holds credentials and team-wide defaults. Same file for every project. Rotated once when credentials change.
 

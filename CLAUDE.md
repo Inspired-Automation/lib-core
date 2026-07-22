@@ -20,7 +20,7 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 - **Freshservice** for raising error notification tickets
 
 ## Configuration
-- Reads `team.yaml` from `\\inspiredenergysolutions.local\DFS\Public\!IE\BPI\Automation Team\Tools\Scripts\yaml\team.yaml` (required)
+- Reads `team.yaml` from `\\inspiredenergysolutions.local\DFS\Public\!IES\BPI\Automation Team\Tools\Scripts\yaml\team.yaml` (required)
 - Reads `config/config.yaml` from the consuming project's root (optional)
 - The library itself has no config file
 
@@ -69,10 +69,11 @@ Bots can receive run parameters from the Control Room orchestrator. The orchestr
 - Cross-project deployment note (not a lib-core dependency): consuming projects that pull `numpy` (usually transitively via pandas) should pin `numpy<2.4`. numpy 2.4.0 raised the x86-64 build baseline to x86-64-v2, so `import numpy` aborts with `RuntimeError: NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)` on generic/virtualised CPU models (seen on an RDS server). 2.3.x keeps the v1 baseline and has Python 3.14 wheels. Durable fix: have infra set the VM's CPU compatibility mode to a v2-capable model. First hit in `automation-lseg-data-refresh` (2026-07-22).
 
 ## Change Log
+- 2026-07-22: Fixed broken `TEAM_YAML_PATH` (`\Public\!IE\` → `\Public\!IES\`, a missing `S` from the 2026-07-15 UNC conversion) that made every `setup()` on 1.3.0/1.4.0 raise `ConfigurationError`; released v1.4.1. `!IES` confirmed as the real share (Control Room uses it too).
 - 2026-07-22: Added the `params.json` run-parameter declarations contract (repo-root file declaring each consumed param for the orchestrator's GUI), plus `automation_core.load_param_definitions()` and setup-time validation of supplied params. Documented in lib-core-spec.md §3.4; released v1.4.0.
 - 2026-07-22: Added `Context.params` (run params from a `--job-file` job.json) and a machine-readable JSON meta block in notification bodies (wrapped in `---AUTOMATION-META-BEGIN/END---` markers for downstream flows); folded in the UNC `TEAM_YAML_PATH` change; released v1.3.0.
 - 2026-07-22: Documented a cross-project deployment gotcha (numpy 2.4 x86-64-v2 baseline crash on virtualised/RDS CPUs; pin `numpy<2.4`). Not a lib-core dependency — guidance for consuming projects. See Known Gotchas.
-- 2026-07-15: `TEAM_YAML_PATH` switched from mapped `I:` drive to UNC path under `\\inspiredenergysolutions.local\DFS\Public\!IE\...`.
+- 2026-07-15: `TEAM_YAML_PATH` switched from mapped `I:` drive to UNC path under `\\inspiredenergysolutions.local\DFS\Public\!IES\...`.
 - 2026-07-08: Releases now include a built wheel as a GitHub release asset, so projects can pin by wheel URL; RELEASING.md updated.
 - 2026-07-08: Lowered minimum Python from 3.14 to 3.13 (`requires-python = ">=3.13"`); fixed stale `__version__`; released v1.2.2.
 - 2026-06-02: Added dispatch method to logging and removed debug statements; released v1.2.1

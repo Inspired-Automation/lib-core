@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-07-22
+
+### Fixed
+- `TEAM_YAML_PATH` pointed at a non-existent share segment `\Public\!IE\`
+  (missing trailing `S`), introduced during the 2026-07-15 `I:` → UNC
+  conversion. Corrected to `\Public\!IES\`. Every `setup()` call on 1.3.0 and
+  1.4.0 failed with `ConfigurationError` ("Required team config not found")
+  because the path did not resolve; projects on those versions must upgrade to
+  1.4.1. Also corrected the path in the README, spec, and CLAUDE.md.
+
 ## [1.4.0] - 2026-07-22
 
 ### Added
@@ -40,7 +50,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 - `TEAM_YAML_PATH` now uses the UNC share
-  (`\\inspiredenergysolutions.local\DFS\Public\!IE\...`) instead of the
+  (`\\inspiredenergysolutions.local\DFS\Public\!IES\...`) instead of the
   mapped `I:` drive letter, so config loading works without a drive mapping.
 
 ## [1.2.2] - 2026-07-08

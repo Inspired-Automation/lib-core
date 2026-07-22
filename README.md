@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
 Two config files are read at startup:
 
-1. **Team config (required):** `\\inspiredenergysolutions.local\DFS\Public\!IE\BPI\Automation Team\Tools\Scripts\yaml\team.yaml`. Contains Graph credentials, Freshservice credentials, default notification recipient, and the production root path.
+1. **Team config (required):** `\\inspiredenergysolutions.local\DFS\Public\!IES\BPI\Automation Team\Tools\Scripts\yaml\team.yaml`. Contains Graph credentials, Freshservice credentials, default notification recipient, and the production root path.
 2. **Project config (optional):** `config/config.yaml` in the project root. Overrides team defaults on a key-by-key basis.
 
 See the full specification in `lib-core-spec.md`.

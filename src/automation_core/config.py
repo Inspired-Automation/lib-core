@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 
 TEAM_YAML_PATH = Path(
-    r"\\inspiredenergysolutions.local\DFS\Public\!IE\BPI\Automation Team\Tools\Scripts\yaml\team.yaml"
+    r"\\inspiredenergysolutions.local\DFS\Public\!IES\BPI\Automation Team\Tools\Scripts\yaml\team.yaml"
 )
 
 
