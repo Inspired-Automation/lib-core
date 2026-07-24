@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-24
+
+### Added
+- `setup()` now falls back to the `CR_JOB_FILE` environment variable to locate
+  the job file when `--job-file` is not on the command line. The Control Room
+  agent's project-bot wrapper exports this variable, so a project launched
+  through a `run.bat` that does not forward its arguments to Python still gets
+  `ctx.job_id` and `ctx.params` populated (previously a project bot only
+  received them if the job-file argument reached the interpreter). The explicit
+  `--job-file` argument still wins when both are present. Reading remains
+  never-fail: with neither source, `job_id` is `None` and `params` is `{}`.
+
 ## [1.5.0] - 2026-07-24
 
 ### Added

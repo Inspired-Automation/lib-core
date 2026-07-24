@@ -164,6 +164,12 @@ last two are logged as a warning). Only `--job-file` is consumed from the
 command line (via `parse_known_args`), so a bot's own CLI arguments are left
 untouched.
 
+When `--job-file` is not on the command line, `setup()` falls back to the
+`CR_JOB_FILE` environment variable. The Control Room agent's project-bot
+wrapper exports this variable, so a project launched via a `run.bat` that does
+not forward its arguments to Python still receives `ctx.job_id` and
+`ctx.params`. The explicit `--job-file` argument wins when both are present.
+
 #### `params.json` declarations file (repo root)
 
 So the orchestrator can render a parameter-entry GUI **before** starting a run,

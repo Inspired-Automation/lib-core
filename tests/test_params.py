@@ -71,6 +71,31 @@ def test_bot_own_arguments_are_left_alone(tmp_path: Path):
     assert _read_job_file(argv) == (9, {"k": "v"})
 
 
+def test_cr_job_file_env_used_when_no_arg(tmp_path, monkeypatch):
+    # A run.bat that does not forward its args to Python leaves --job-file off
+    # the command line; the agent's CR_JOB_FILE env var is the fallback.
+    job_file = _write_job_file(
+        tmp_path, {"job_id": 77, "bot": "demo", "params": {"k": "v"}}
+    )
+    monkeypatch.setenv("CR_JOB_FILE", job_file)
+    assert _read_job_file([]) == (77, {"k": "v"})
+
+
+def test_job_file_arg_takes_precedence_over_env(tmp_path, monkeypatch):
+    arg_file = tmp_path / "arg.json"
+    arg_file.write_text(
+        json.dumps({"job_id": 1, "bot": "demo", "params": {"src": "arg"}}),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / "env.json"
+    env_file.write_text(
+        json.dumps({"job_id": 2, "bot": "demo", "params": {"src": "env"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CR_JOB_FILE", str(env_file))
+    assert _read_job_file(["--job-file", str(arg_file)]) == (1, {"src": "arg"})
+
+
 def _write_params_file(root: Path, payload: object) -> None:
     (root / PARAMS_FILE).write_text(json.dumps(payload), encoding="utf-8")
 

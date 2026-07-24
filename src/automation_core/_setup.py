@@ -127,20 +127,30 @@ def _read_job_file(argv: list[str] | None) -> tuple[int | None, dict]:
     The agent invokes bots as `python.exe <script> --job-file <path>`; that
     job.json carries a "job_id" and a "params" object set on the schedule,
     trigger or API call. We parse only --job-file (parse_known_args leaves any
-    arguments the bot defines for itself untouched) and never fail the bot over
-    it: a hand run has no --job-file, and a missing or malformed file is logged
-    and treated as no job id and no params rather than killing an otherwise
-    healthy run.
+    arguments the bot defines for itself untouched).
+
+    When --job-file is not on the command line we fall back to the
+    ``CR_JOB_FILE`` environment variable, which the agent's project-bot wrapper
+    exports. This is the channel for project bots launched through a ``run.bat``
+    that does not forward its arguments to Python: the wrapper cannot rely on
+    the argument reaching the interpreter, but the environment variable is
+    inherited by whatever the bot ends up running. The explicit argument wins
+    when both are present.
+
+    Reading never fails the bot: a hand run has neither source, and a missing
+    or malformed file is logged and treated as no job id and no params rather
+    than killing an otherwise healthy run.
     """
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--job-file")
     args, _ = parser.parse_known_args(sys.argv[1:] if argv is None else argv)
 
-    if not args.job_file:
+    job_file = args.job_file or os.environ.get("CR_JOB_FILE")
+    if not job_file:
         return None, {}
 
     try:
-        with open(args.job_file, encoding="utf-8") as fh:
+        with open(job_file, encoding="utf-8") as fh:
             job = json.load(fh)
         job_id = job.get("job_id")
         params = job.get("params", {})
@@ -149,8 +159,8 @@ def _read_job_file(argv: list[str] | None) -> tuple[int | None, dict]:
         return job_id, params
     except Exception:
         _ilog.logger.warning(
-            "could not read run params from --job-file %r; continuing with none",
-            args.job_file,
+            "could not read run params from job file %r; continuing with none",
+            job_file,
             exc_info=True,
         )
         return None, {}
