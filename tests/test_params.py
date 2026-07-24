@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from automation_core._setup import _read_job_params
+from automation_core._setup import _read_job_file
 from automation_core.config import ConfigurationError
 from automation_core.params import (
     PARAMS_FILE,
@@ -20,50 +20,55 @@ def _write_job_file(tmp_path: Path, payload: object) -> str:
     return str(job_file)
 
 
-def test_no_job_file_gives_empty_params():
+def test_no_job_file_gives_no_job_id_or_params():
     # A hand run in dev has no --job-file argument at all.
-    assert _read_job_params([]) == {}
+    assert _read_job_file([]) == (None, {})
 
 
-def test_reads_params_object(tmp_path: Path):
+def test_reads_job_id_and_params_object(tmp_path: Path):
     job_file = _write_job_file(
-        tmp_path, {"job_id": 1, "bot": "demo", "params": {"region": "north"}}
+        tmp_path, {"job_id": 42, "bot": "demo", "params": {"region": "north"}}
     )
-    params = _read_job_params(["--job-file", job_file])
-    assert params == {"region": "north"}
+    assert _read_job_file(["--job-file", job_file]) == (42, {"region": "north"})
 
 
 def test_job_file_without_params_key_gives_empty(tmp_path: Path):
-    job_file = _write_job_file(tmp_path, {"job_id": 1, "bot": "demo"})
-    assert _read_job_params(["--job-file", job_file]) == {}
+    job_file = _write_job_file(tmp_path, {"job_id": 7, "bot": "demo"})
+    assert _read_job_file(["--job-file", job_file]) == (7, {})
+
+
+def test_job_file_without_job_id_gives_none(tmp_path: Path):
+    # A hand-crafted or older job file may omit job_id; params still read.
+    job_file = _write_job_file(tmp_path, {"bot": "demo", "params": {"k": "v"}})
+    assert _read_job_file(["--job-file", job_file]) == (None, {"k": "v"})
 
 
 def test_missing_job_file_does_not_raise(tmp_path: Path):
     missing = str(tmp_path / "no_such_file.json")
-    assert _read_job_params(["--job-file", missing]) == {}
+    assert _read_job_file(["--job-file", missing]) == (None, {})
 
 
 def test_malformed_job_file_does_not_raise(tmp_path: Path):
     job_file = tmp_path / "job.json"
     job_file.write_text("{not valid json", encoding="utf-8")
-    assert _read_job_params(["--job-file", str(job_file)]) == {}
+    assert _read_job_file(["--job-file", str(job_file)]) == (None, {})
 
 
 def test_non_object_params_treated_as_none(tmp_path: Path):
     job_file = _write_job_file(
         tmp_path, {"job_id": 1, "bot": "demo", "params": ["north"]}
     )
-    assert _read_job_params(["--job-file", job_file]) == {}
+    assert _read_job_file(["--job-file", job_file]) == (None, {})
 
 
 def test_bot_own_arguments_are_left_alone(tmp_path: Path):
     # parse_known_args must ignore arguments the bot defines for itself and
     # still pick --job-file out of the mix.
     job_file = _write_job_file(
-        tmp_path, {"job_id": 1, "bot": "demo", "params": {"k": "v"}}
+        tmp_path, {"job_id": 9, "bot": "demo", "params": {"k": "v"}}
     )
     argv = ["--dry-run", "--job-file", job_file, "--count", "5"]
-    assert _read_job_params(argv) == {"k": "v"}
+    assert _read_job_file(argv) == (9, {"k": "v"})
 
 
 def _write_params_file(root: Path, payload: object) -> None:

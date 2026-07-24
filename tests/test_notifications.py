@@ -11,13 +11,18 @@ from automation_core.notifications import dispatch_notification
 from automation_core.notifications.freshservice import create_ticket, normalize_base_url
 
 
-def _ctx(method: str = "email", is_production: bool = True) -> Context:
+def _ctx(
+    method: str = "email",
+    is_production: bool = True,
+    job_id: int | None = None,
+) -> Context:
     return Context(
         process_name="TestProcess",
         log_file=Path("/tmp/test.log"),
         is_production=is_production,
         notification_method=method,
         notification_recipient="team@example.com",
+        job_id=job_id,
     )
 
 
@@ -100,12 +105,19 @@ class TestEmailDispatch:
 
 
 class TestMetaBlock:
-    def _body(self, is_critical: bool, errors: ErrorCollector) -> str:
+    def _body(
+        self,
+        is_critical: bool,
+        errors: ErrorCollector,
+        job_id: int | None = None,
+    ) -> str:
         with (
             patch("automation_core.notifications._get_config", return_value=CONFIG),
             patch("automation_core.notifications.email_graph.send") as mock_send,
         ):
-            dispatch_notification(_ctx("email"), errors, is_critical=is_critical)
+            dispatch_notification(
+                _ctx("email", job_id=job_id), errors, is_critical=is_critical
+            )
         # send(config, recipient, subject, body)
         return mock_send.call_args[0][3]
 
@@ -139,6 +151,23 @@ class TestMetaBlock:
         ec.add("boom", exception=ValueError("bad input"))
         meta = self._parse_meta(self._body(False, ec))
         assert meta["errors"][0]["exception"] == "ValueError: bad input"
+
+    def test_meta_carries_job_id_when_present(self):
+        body = self._body(True, _errors("e"), job_id=555)
+        assert self._parse_meta(body)["job_id"] == 555
+        assert "Job ID:     555" in body
+
+    def test_meta_job_id_is_null_for_hand_run(self):
+        body = self._body(False, _errors("e"), job_id=None)
+        assert self._parse_meta(body)["job_id"] is None
+        assert "Job ID:     (hand run)" in body
+
+    def test_meta_schema_is_versioned(self):
+        from automation_core.notifications import META_SCHEMA_VERSION
+
+        assert self._parse_meta(self._body(False, _errors("e")))["schema"] == (
+            META_SCHEMA_VERSION
+        )
 
 
 class TestFreshserviceDispatch:

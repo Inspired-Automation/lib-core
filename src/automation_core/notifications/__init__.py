@@ -16,7 +16,10 @@ from typing import TYPE_CHECKING
 META_BEGIN = "---AUTOMATION-META-BEGIN---"
 META_END = "---AUTOMATION-META-END---"
 # Bump when the JSON structure changes so flows can branch on it.
-META_SCHEMA_VERSION = 1
+# v2 (lib-core 1.5.0): added the nullable "job_id" field (the Control Room
+# job this run belonged to, or null for a hand run). Additive; a v1 consumer
+# that ignores unknown keys still works.
+META_SCHEMA_VERSION = 2
 
 from .. import _internal_log as _ilog
 from .._setup import _get_config
@@ -76,6 +79,7 @@ def _build_body(
 
     lines: list[str] = [
         f"Process:    {ctx.process_name}",
+        f"Job ID:     {ctx.job_id if ctx.job_id is not None else '(hand run)'}",
         f"Timestamp:  {now_utc}",
         f"Host:       {hostname}",
         f"User:       {username}",
@@ -125,6 +129,7 @@ def _build_meta_block(
     payload = {
         "schema": META_SCHEMA_VERSION,
         "process": ctx.process_name,
+        "job_id": ctx.job_id,
         "severity": "critical" if is_critical else "error",
         "is_critical": is_critical,
         "error_count": errors.count,

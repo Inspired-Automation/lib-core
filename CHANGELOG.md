@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-07-24
+
+### Added
+- `Context.job_id`: the Control Room job id a run belongs to, read from the
+  same `--job-file` as `ctx.params` (job.json's `job_id`). `None` for a hand
+  run or any run the Control Room did not start. Read it with `ctx.job_id`.
+- The job id is now folded into the log filename:
+  `<ProcessName>_<YYYYMMDD>_<HHMMSS>_job<job_id>.log` when a job id is present,
+  so concurrent runs of the same bot (an `allow_overlap` bot, a multi-session
+  node, or a dev hand run overlapping a production run) each get their own log
+  file instead of interleaving into one. A run with no job id falls back to a
+  process-id suffix (`_p<pid>.log`) so two same-second hand runs on a host also
+  stay separate.
+- `job_id` added to the machine-readable notification meta block so a failure
+  email or ticket links straight back to the exact Control Room job (`null` on
+  a hand run). The human-readable body gains a `Job ID:` line.
+
+### Changed
+- Notification meta `META_SCHEMA_VERSION` bumped `1` -> `2` for the additive
+  `job_id` field. The change is backward compatible: a v1 consumer that ignores
+  unknown keys keeps working.
+
 ## [1.4.1] - 2026-07-22
 
 ### Fixed

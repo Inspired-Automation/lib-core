@@ -3,7 +3,7 @@ from .context import Context
 from .errors import ErrorCollector, collect_errors
 from .params import load_param_definitions
 
-__version__ = "1.4.1"
+__version__ = "1.5.0"
 
 __all__ = [
     "setup",

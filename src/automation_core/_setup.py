@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,6 +54,10 @@ def setup(process_name: str, argv: list[str] | None = None) -> Context:
         production_root = _config.get("paths", {}).get("production_root", "")
         log_root = Path(production_root) / process_name
 
+    # Read the job file once, before naming the log, so the job id can go
+    # into the filename. Never fails the run (see _read_job_file).
+    job_id, params = _read_job_file(argv)
+
     now = datetime.now(tz=timezone.utc)
     dated_dir = (
         log_root
@@ -62,11 +68,9 @@ def setup(process_name: str, argv: list[str] | None = None) -> Context:
     )
     dated_dir.mkdir(parents=True, exist_ok=True)
 
-    log_file = dated_dir / f"{process_name}_{now.strftime('%Y%m%d_%H%M%S')}.log"
+    log_file = dated_dir / _log_filename(process_name, now, job_id)
 
     configure(log_file, process_name)
-
-    params = _read_job_params(argv)
 
     # If the bot declares its params in params.json, validate what was actually
     # supplied against those declarations. A malformed params.json is a bot
@@ -89,40 +93,67 @@ def setup(process_name: str, argv: list[str] | None = None) -> Context:
         notification_method=notification_method,
         notification_recipient=notification_recipient,
         params=params,
+        job_id=job_id,
     )
 
 
-def _read_job_params(argv: list[str] | None) -> dict:
-    """Return the run params the Control Room handed this bot.
+# Characters that must not reach a Windows filename. job_id is an int today,
+# so this never fires in practice; it is a belt-and-braces guard against a
+# hand-crafted job file carrying something odd.
+_UNSAFE_FILENAME = re.compile(r'[<>:"/\\|?*\x00-\x1f\s]+')
+
+
+def _log_filename(process_name: str, now: datetime, job_id: object) -> str:
+    """Build the log filename, folding in the Control Room job id.
+
+    With a job id the name is globally unique (one file per job), so
+    concurrent runs of the same bot (an ``allow_overlap`` bot, a multi-session
+    node, or a dev hand run overlapping a production run) never open and
+    interleave into the same file. Without one, the process id keeps two
+    same-second hand runs on a host in separate files.
+    """
+    stamp = now.strftime("%Y%m%d_%H%M%S")
+    if job_id is not None:
+        token = _UNSAFE_FILENAME.sub("-", str(job_id)).strip("-") or "x"
+        suffix = f"job{token}"
+    else:
+        suffix = f"p{os.getpid()}"
+    return f"{process_name}_{stamp}_{suffix}.log"
+
+
+def _read_job_file(argv: list[str] | None) -> tuple[int | None, dict]:
+    """Return ``(job_id, params)`` the Control Room handed this bot.
 
     The agent invokes bots as `python.exe <script> --job-file <path>`; that
-    job.json carries a "params" object set on the schedule, trigger or API
-    call. We parse only --job-file (parse_known_args leaves any arguments the
-    bot defines for itself untouched) and never fail the bot over params: a
-    hand run has no --job-file, and a missing or malformed file is logged and
-    treated as no params rather than killing an otherwise healthy run.
+    job.json carries a "job_id" and a "params" object set on the schedule,
+    trigger or API call. We parse only --job-file (parse_known_args leaves any
+    arguments the bot defines for itself untouched) and never fail the bot over
+    it: a hand run has no --job-file, and a missing or malformed file is logged
+    and treated as no job id and no params rather than killing an otherwise
+    healthy run.
     """
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--job-file")
     args, _ = parser.parse_known_args(sys.argv[1:] if argv is None else argv)
 
     if not args.job_file:
-        return {}
+        return None, {}
 
     try:
         with open(args.job_file, encoding="utf-8") as fh:
             job = json.load(fh)
+        job_id = job.get("job_id")
         params = job.get("params", {})
         if not isinstance(params, dict):
             raise ValueError("job params is not a JSON object")
-        return params
+        return job_id, params
     except Exception:
         _ilog.logger.warning(
             "could not read run params from --job-file %r; continuing with none",
             args.job_file,
             exc_info=True,
         )
-        return {}
+        return None, {}
 
 
 def _detect_production(config: dict) -> bool:

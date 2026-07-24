@@ -106,6 +106,7 @@ ctx = setup("TenderWatcher")
 # ctx.notification_method - "email" or "freshservice"
 # ctx.notification_recipient - resolved recipient address
 # ctx.params - dict of run parameters (see 3.4); {} when run without any
+# ctx.job_id - the Control Room job id (see 3.4); None for a hand run
 ```
 
 `setup()` also accepts an optional `argv` argument (defaulting to `sys.argv[1:]`) used only to locate `--job-file` when reading run params; tests pass it explicitly.
@@ -147,9 +148,15 @@ Every call to `add` writes to the log file immediately, so a subsequent crash do
 
 The Control Room orchestrator can pass run parameters to a bot. It invokes the
 bot as `python.exe <script> --job-file <path>`, where `job.json` carries a
-`params` object. `setup()` reads that object and exposes it as `ctx.params`
-(a `dict`; `{}` when the bot is run by hand or scheduled without params). Read
-values with `ctx.params.get("name", default)`.
+`job_id` and a `params` object. `setup()` reads that object and exposes it as
+`ctx.params` (a `dict`; `{}` when the bot is run by hand or scheduled without
+params). Read values with `ctx.params.get("name", default)`.
+
+The same job file carries the job's `job_id`, exposed as `ctx.job_id` (`None`
+for a hand run, or any run the Control Room did not start). It is read on the
+same never-fail-the-run basis as `params`, folded into the log filename so
+concurrent runs of one bot never share a log file (see §5), and included in
+failure notifications so an alert links back to the exact job (see §4.4).
 
 Reading supplied params never fails a run: no `--job-file`, a missing or
 malformed job file, or a non-object `params` value all resolve to `{}` (the
@@ -252,7 +259,7 @@ Notes:
 - Subject pattern:
   - Critical: `[CRITICAL] <ProcessName> failed`
   - Summary: `[<ProcessName>] N issue(s) during run`
-- Body: machine name, run timestamp, log file path, error list with details.
+- Body: process name, Control Room job id (or "(hand run)"), machine name, run timestamp, log file path, error list with details, and a machine-readable meta block (see 3.4) whose `job_id` field carries the same id (`null` on a hand run).
 
 ### 4.5 Freshservice notification format
 
@@ -274,7 +281,7 @@ Notes:
 
 The library handles all logging setup. Projects just import `logging` and use it normally.
 
-- File handler writes to `<production_root>\<ProcessName>\logs\<YYYY>\<MonthName>\<DD>\<ProcessName>_<YYYYMMDD>_<HHMMSS>.log`.
+- File handler writes to `<production_root>\<ProcessName>\logs\<YYYY>\<MonthName>\<DD>\<ProcessName>_<YYYYMMDD>_<HHMMSS>_<suffix>.log`, where `<suffix>` is `job<job_id>` when the Control Room supplied a job id (see §3.4) and `p<pid>` otherwise. The suffix keeps concurrent runs of the same bot in separate files: with a job id the name is globally unique; without one, the process id separates two same-second hand runs on a host.
 - Console handler writes to stdout.
 - Format: `%(asctime)s | %(levelname)s | %(name)s | %(message)s`.
 - Encoding: UTF-8.

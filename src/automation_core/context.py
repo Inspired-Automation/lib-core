@@ -16,3 +16,9 @@ class Context:
     # object); an empty dict when the bot is run by hand or scheduled without
     # any params. Read values with ctx.params.get("name", default).
     params: dict = field(default_factory=dict)
+    # The Control Room job id this run belongs to, read from the same
+    # --job-file (job.json's "job_id"). None for a hand run or any run the
+    # Control Room did not start. It is folded into the log filename so
+    # concurrent runs of the same bot never share a log file, and included in
+    # failure notifications so an alert links back to the exact job.
+    job_id: int | None = None
