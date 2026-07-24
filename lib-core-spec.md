@@ -170,12 +170,45 @@ wrapper exports this variable, so a project launched via a `run.bat` that does
 not forward its arguments to Python still receives `ctx.job_id` and
 `ctx.params`. The explicit `--job-file` argument wins when both are present.
 
+So the orchestrator can render a parameter-entry GUI **before** starting a run,
+every bot that consumes run params must declare them. The preferred way is
+code-first with `param()`; a `params.json` file is the older, still-supported
+alternative.
+
+#### Code-first declarations (`param()`)
+
+Declare each parameter in code, at module scope, with `param()`:
+
+```python
+from automation_core import param
+
+REGION = param("region", str, required=True, choices=["north", "south"],
+               description="Region to process")
+
+def main():
+    ctx = setup("MyBot")
+    region = REGION.read(ctx.params)   # coerced value, or the declared default
+```
+
+- `param(name, type, *, required=False, description="", choices=None,
+  default=None) -> Param`. `type` is a Python builtin (`str`/`int`/`float`/
+  `bool`) or its JSON-type name (`"string"`/`"integer"`/`"number"`/
+  `"boolean"`). `choices` restricts the value to a fixed set (rendered as a
+  dropdown). `Param.read(params)` returns the supplied value or, when it was
+  absent/blank, the declared `default`.
+- Keep the arguments literal: the orchestrator reads these declarations
+  straight from the deployed source (it parses the `param()` calls; it does not
+  run the bot), so a declaration built from a runtime value would not be seen.
+- `setup()` validates the supplied params against the declared `param()` set
+  (falling back to `params.json` when none are declared in code), logging
+  mismatches as warnings without failing the run.
+
 #### `params.json` declarations file (repo root)
 
-So the orchestrator can render a parameter-entry GUI **before** starting a run,
-every bot that consumes run params must ship a `params.json` at its repo root
-declaring those params. The orchestrator reads it to build the form; `lib-core`
-reads it to validate what was actually supplied.
+A bot may instead ship a `params.json` at its repo root declaring those params.
+The orchestrator reads it to build the form; `lib-core` reads it to validate
+what was actually supplied. Code-first `param()` declarations take precedence
+when both are present.
 
 It is a JSON object with a `params` array. Each entry:
 

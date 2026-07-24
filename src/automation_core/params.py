@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import _internal_log as _ilog
 from .config import ConfigurationError
 
 # The declarations file a bot ships at its repo root when it consumes run params.
@@ -93,11 +92,16 @@ def _validate_definition(entry: object, index: int, seen: set[str]) -> dict:
     if not isinstance(description, str):
         raise ConfigurationError(f"{where} ({name!r}) 'description' must be a string.")
 
+    choices = entry.get("choices")
+    if choices is not None and not isinstance(choices, list):
+        raise ConfigurationError(f"{where} ({name!r}) 'choices' must be a list.")
+
     return {
         "name": name,
         "type": param_type,
         "required": required,
         "description": description,
+        "choices": choices,
     }
 
 
@@ -138,6 +142,13 @@ def validate_params(definitions: list[dict], provided: dict) -> list[str]:
             problems.append(
                 f"param {name!r} should be {definition['type']} "
                 f"but got {type(value).__name__}"
+            )
+            continue
+        choices = definition.get("choices")
+        if choices and value not in choices:
+            problems.append(
+                f"param {name!r} value {value!r} is not one of the "
+                f"declared choices {choices}"
             )
 
     return problems

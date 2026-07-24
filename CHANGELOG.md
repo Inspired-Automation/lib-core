@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-07-24
+
+### Added
+- Code-first run-parameter declarations. A bot declares the parameters it reads
+  directly in code with `param(name, type, *, required=False, description="",
+  choices=None, default=None)` (exported from `automation_core`), instead of a
+  hand-written `params.json`. `param()` returns a `Param`; read the supplied
+  value at runtime with `.read(ctx.params)`, which returns the declared default
+  when the param was not supplied. Declare at module scope with literal
+  arguments: the Control Room reads these declarations straight from the
+  deployed source to build its parameter-entry form (it parses the calls, it
+  does not run the bot), so a declaration can never drift from the code that
+  uses it. Type may be a Python builtin (`str`/`int`/`float`/`bool`) or its
+  JSON-type name. `choices` restricts the value to a fixed set, which the
+  Control Room renders as a dropdown.
+- `setup()` validates supplied params against the code declarations when any
+  `param()` is declared, falling back to `params.json` otherwise; mismatches
+  (missing required, wrong type, value not in `choices`) are logged as warnings
+  without failing the run.
+- `params.json` entries and validation accept an optional `choices` list, kept
+  consistent with the code-first path.
+
 ## [1.6.0] - 2026-07-24
 
 ### Added

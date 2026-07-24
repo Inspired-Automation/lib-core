@@ -14,6 +14,7 @@ from .config import load_config
 from .context import Context
 from .logging_setup import configure
 from .params import load_param_definitions, validate_params
+from .paramspec import declared_params
 
 # Single config store per process. A second call to setup() overwrites the first,
 # which is intentional for the single-script-per-process use case. Test suites
@@ -72,11 +73,16 @@ def setup(process_name: str, argv: list[str] | None = None) -> Context:
 
     configure(log_file, process_name)
 
-    # If the bot declares its params in params.json, validate what was actually
-    # supplied against those declarations. A malformed params.json is a bot
-    # developer error and propagates; validation mismatches are logged loudly
-    # but do not fail the run (the orchestrator is the primary gate on params).
-    definitions = load_param_definitions()
+    # Validate the supplied params against the bot's declarations. Code-first
+    # param() declarations (the registry) are the source of truth and win; a
+    # legacy params.json is the fallback for bots not yet migrated. A malformed
+    # params.json still propagates; validation mismatches are logged loudly but
+    # do not fail the run (the orchestrator is the primary gate on params).
+    declared = declared_params()
+    if declared:
+        definitions = [p.to_definition() for p in declared]
+    else:
+        definitions = load_param_definitions()
     for problem in validate_params(definitions, params):
         _ilog.logger.warning("run param validation: %s", problem)
 

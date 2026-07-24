@@ -128,12 +128,14 @@ class TestLoadParamDefinitions:
                 "type": "string",
                 "required": True,
                 "description": "Region to process",
+                "choices": None,
             },
             {
                 "name": "dry_run",
                 "type": "boolean",
                 "required": False,
                 "description": "",
+                "choices": None,
             },
         ]
 
