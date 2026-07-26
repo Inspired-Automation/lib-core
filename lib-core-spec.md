@@ -107,6 +107,7 @@ ctx = setup("TenderWatcher")
 # ctx.notification_recipient - resolved recipient address
 # ctx.params - dict of run parameters (see 3.4); {} when run without any
 # ctx.job_id - the Control Room job id (see 3.4); None for a hand run
+# ctx.job_file - Path to the --job-file/CR_JOB_FILE job.json; None for a hand run
 ```
 
 `setup()` also accepts an optional `argv` argument (defaulting to `sys.argv[1:]`) used only to locate `--job-file` when reading run params; tests pass it explicitly.
@@ -157,6 +158,10 @@ for a hand run, or any run the Control Room did not start). It is read on the
 same never-fail-the-run basis as `params`, folded into the log filename so
 concurrent runs of one bot never share a log file (see §5), and included in
 failure notifications so an alert links back to the exact job (see §4.4).
+
+`ctx.job_file` is the path to that same job file (`None` for a hand run). It
+is not meant for bots to read directly; it exists so `collect_errors` (§3.2)
+knows where to write the `cr_errors.json` sidecar described in §4.6.
 
 Reading supplied params never fails a run: no `--job-file`, a missing or
 malformed job file, or a non-object `params` value all resolve to `{}` (the
@@ -313,6 +318,49 @@ Notes:
   - `email` — set from `requester_email`.
   - `tags` — the configured `tags` list plus one appended tag: `critical` for
     critical tickets, `summary` for non-fatal summary tickets.
+
+### 4.6 Control Room error sidecar (`cr_errors.json`)
+
+Alongside dispatching the email/Freshservice notification, `collect_errors`
+writes a JSON sidecar file next to the job file (`ctx.job_file.parent /
+"cr_errors.json"`), written atomically (temp file + rename). This lets the
+Control Room agent read a run's collected/critical errors back after the bot
+process exits and fold them into the job's terminal report, so the console
+can show the same errors already sent out — it is a read-back mechanism for
+the Control Room only, not a second notification channel.
+
+- Written whenever there is anything to report: on a clean exit with
+  `errors.count > 0`, or on an unhandled exception. Never written on a clean,
+  error-free exit, and never written at all when `ctx.job_file is None` (a
+  hand run) — file absence is always the ordinary case.
+- Written unconditionally, independent of the `notifications.enabled` setting
+  (§4.3) — this is Control Room visibility, not the team's own notification
+  routing decision.
+- A write failure only logs a warning to the internal log; it never affects
+  the run or the existing notification dispatch.
+
+Schema (`schema: 1`):
+
+```json
+{
+  "schema": 1,
+  "is_critical": false,
+  "error_count": 2,
+  "timestamp_utc": "2026-07-26 10:15:32 UTC",
+  "errors": [
+    {"message": "row 4 missing SKU", "details": {"row": 4}, "exception": null},
+    {"message": "upstream API timed out", "details": null, "exception": "TimeoutError: read timed out"}
+  ],
+  "traceback": null
+}
+```
+
+`errors` uses the same serialization as the notification meta block's
+`errors` array (§4.4): `exception` is `"TypeName: str(exc)"` or `null`, never
+a live exception object. `traceback` is the full formatted traceback string
+when `is_critical` is true and populated only in that case, otherwise `null`.
+`job_id`/`process_name`/`host`/`user` are deliberately omitted: the agent
+already knows which job it is reporting on from its own job record.
 
 ---
 

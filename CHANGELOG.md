@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-26
+
+### Added
+- `Context.job_file`: the path to the `--job-file`/`CR_JOB_FILE` job.json
+  this run was invoked with, `None` for a hand run. Used to locate the
+  new error sidecar below; not otherwise meant for bots to read directly.
+- `collect_errors` now writes a `cr_errors.json` sidecar next to the job
+  file (schema `{schema, is_critical, error_count, timestamp_utc, errors,
+  traceback}`) whenever it has anything to report: on a clean exit with
+  non-fatal errors collected, or on an unhandled exception. This lets the
+  Control Room agent read a run's collected/critical errors back into the
+  job's terminal report after the bot exits, so the same errors already
+  sent to Freshservice or email also show up in the console. Written
+  unconditionally (independent of `notifications.enabled`) and is a
+  no-op when `ctx.job_file` is `None`; a write failure only logs a
+  warning and never affects the run or the existing notification.
+  Requires Control Room agent >= 0.29.0 to be read; older agents, plain
+  script bots, and any bot not using `collect_errors` are unaffected.
+
+### Changed
+- The notification meta block's error serialization now shares
+  `errors.serialize_errors` instead of duplicating the logic; no
+  observable change to the notification body.
+
 ## [1.7.0] - 2026-07-24
 
 ### Added

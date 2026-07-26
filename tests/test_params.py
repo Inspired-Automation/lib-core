@@ -22,43 +22,53 @@ def _write_job_file(tmp_path: Path, payload: object) -> str:
 
 def test_no_job_file_gives_no_job_id_or_params():
     # A hand run in dev has no --job-file argument at all.
-    assert _read_job_file([]) == (None, {})
+    assert _read_job_file([]) == (None, {}, None)
 
 
 def test_reads_job_id_and_params_object(tmp_path: Path):
     job_file = _write_job_file(
         tmp_path, {"job_id": 42, "bot": "demo", "params": {"region": "north"}}
     )
-    assert _read_job_file(["--job-file", job_file]) == (42, {"region": "north"})
+    assert _read_job_file(["--job-file", job_file]) == (
+        42, {"region": "north"}, Path(job_file),
+    )
 
 
 def test_job_file_without_params_key_gives_empty(tmp_path: Path):
     job_file = _write_job_file(tmp_path, {"job_id": 7, "bot": "demo"})
-    assert _read_job_file(["--job-file", job_file]) == (7, {})
+    assert _read_job_file(["--job-file", job_file]) == (7, {}, Path(job_file))
 
 
 def test_job_file_without_job_id_gives_none(tmp_path: Path):
     # A hand-crafted or older job file may omit job_id; params still read.
     job_file = _write_job_file(tmp_path, {"bot": "demo", "params": {"k": "v"}})
-    assert _read_job_file(["--job-file", job_file]) == (None, {"k": "v"})
+    assert _read_job_file(["--job-file", job_file]) == (
+        None, {"k": "v"}, Path(job_file),
+    )
 
 
 def test_missing_job_file_does_not_raise(tmp_path: Path):
     missing = str(tmp_path / "no_such_file.json")
-    assert _read_job_file(["--job-file", missing]) == (None, {})
+    # job_file is still returned: it only locates the job's directory (for
+    # the error sidecar), which does not depend on job.json being readable.
+    assert _read_job_file(["--job-file", missing]) == (None, {}, Path(missing))
 
 
 def test_malformed_job_file_does_not_raise(tmp_path: Path):
     job_file = tmp_path / "job.json"
     job_file.write_text("{not valid json", encoding="utf-8")
-    assert _read_job_file(["--job-file", str(job_file)]) == (None, {})
+    assert _read_job_file(["--job-file", str(job_file)]) == (
+        None, {}, job_file,
+    )
 
 
 def test_non_object_params_treated_as_none(tmp_path: Path):
     job_file = _write_job_file(
         tmp_path, {"job_id": 1, "bot": "demo", "params": ["north"]}
     )
-    assert _read_job_file(["--job-file", job_file]) == (None, {})
+    assert _read_job_file(["--job-file", job_file]) == (
+        None, {}, Path(job_file),
+    )
 
 
 def test_bot_own_arguments_are_left_alone(tmp_path: Path):
@@ -68,7 +78,7 @@ def test_bot_own_arguments_are_left_alone(tmp_path: Path):
         tmp_path, {"job_id": 9, "bot": "demo", "params": {"k": "v"}}
     )
     argv = ["--dry-run", "--job-file", job_file, "--count", "5"]
-    assert _read_job_file(argv) == (9, {"k": "v"})
+    assert _read_job_file(argv) == (9, {"k": "v"}, Path(job_file))
 
 
 def test_cr_job_file_env_used_when_no_arg(tmp_path, monkeypatch):
@@ -78,7 +88,7 @@ def test_cr_job_file_env_used_when_no_arg(tmp_path, monkeypatch):
         tmp_path, {"job_id": 77, "bot": "demo", "params": {"k": "v"}}
     )
     monkeypatch.setenv("CR_JOB_FILE", job_file)
-    assert _read_job_file([]) == (77, {"k": "v"})
+    assert _read_job_file([]) == (77, {"k": "v"}, Path(job_file))
 
 
 def test_job_file_arg_takes_precedence_over_env(tmp_path, monkeypatch):
@@ -93,7 +103,9 @@ def test_job_file_arg_takes_precedence_over_env(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setenv("CR_JOB_FILE", str(env_file))
-    assert _read_job_file(["--job-file", str(arg_file)]) == (1, {"src": "arg"})
+    assert _read_job_file(["--job-file", str(arg_file)]) == (
+        1, {"src": "arg"}, arg_file,
+    )
 
 
 def _write_params_file(root: Path, payload: object) -> None:

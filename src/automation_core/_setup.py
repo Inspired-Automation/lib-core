@@ -57,7 +57,7 @@ def setup(process_name: str, argv: list[str] | None = None) -> Context:
 
     # Read the job file once, before naming the log, so the job id can go
     # into the filename. Never fails the run (see _read_job_file).
-    job_id, params = _read_job_file(argv)
+    job_id, params, job_file = _read_job_file(argv)
 
     now = datetime.now(tz=timezone.utc)
     dated_dir = (
@@ -100,6 +100,7 @@ def setup(process_name: str, argv: list[str] | None = None) -> Context:
         notification_recipient=notification_recipient,
         params=params,
         job_id=job_id,
+        job_file=job_file,
     )
 
 
@@ -127,8 +128,10 @@ def _log_filename(process_name: str, now: datetime, job_id: object) -> str:
     return f"{process_name}_{stamp}_{suffix}.log"
 
 
-def _read_job_file(argv: list[str] | None) -> tuple[int | None, dict]:
-    """Return ``(job_id, params)`` the Control Room handed this bot.
+def _read_job_file(
+    argv: list[str] | None,
+) -> tuple[int | None, dict, Path | None]:
+    """Return ``(job_id, params, job_file)`` the Control Room handed this bot.
 
     The agent invokes bots as `python.exe <script> --job-file <path>`; that
     job.json carries a "job_id" and a "params" object set on the schedule,
@@ -145,7 +148,10 @@ def _read_job_file(argv: list[str] | None) -> tuple[int | None, dict]:
 
     Reading never fails the bot: a hand run has neither source, and a missing
     or malformed file is logged and treated as no job id and no params rather
-    than killing an otherwise healthy run.
+    than killing an otherwise healthy run. ``job_file`` is returned whenever a
+    path was supplied at all, even if it could not be parsed: it only locates
+    the job's own directory (for the error sidecar), and that does not depend
+    on job.json itself being readable.
     """
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--job-file")
@@ -153,8 +159,9 @@ def _read_job_file(argv: list[str] | None) -> tuple[int | None, dict]:
 
     job_file = args.job_file or os.environ.get("CR_JOB_FILE")
     if not job_file:
-        return None, {}
+        return None, {}, None
 
+    path = Path(job_file)
     try:
         with open(job_file, encoding="utf-8") as fh:
             job = json.load(fh)
@@ -162,14 +169,14 @@ def _read_job_file(argv: list[str] | None) -> tuple[int | None, dict]:
         params = job.get("params", {})
         if not isinstance(params, dict):
             raise ValueError("job params is not a JSON object")
-        return job_id, params
+        return job_id, params, path
     except Exception:
         _ilog.logger.warning(
             "could not read run params from job file %r; continuing with none",
             job_file,
             exc_info=True,
         )
-        return None, {}
+        return None, {}, path
 
 
 def _detect_production(config: dict) -> bool:

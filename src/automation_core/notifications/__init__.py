@@ -23,6 +23,7 @@ META_SCHEMA_VERSION = 2
 
 from .. import _internal_log as _ilog
 from .._setup import _get_config
+from ..errors import serialize_errors
 
 if TYPE_CHECKING:
     from ..context import Context
@@ -137,18 +138,7 @@ def _build_meta_block(
         "host": hostname,
         "user": username,
         "log_file": str(ctx.log_file),
-        "errors": [
-            {
-                "message": err["message"],
-                "details": err.get("details"),
-                "exception": (
-                    f"{type(err['exception']).__name__}: {err['exception']}"
-                    if err.get("exception") is not None
-                    else None
-                ),
-            }
-            for err in errors.all()
-        ],
+        "errors": serialize_errors(errors),
     }
     # default=str guards against any non-serialisable value in a details dict.
     body = json.dumps(payload, indent=2, default=str)
