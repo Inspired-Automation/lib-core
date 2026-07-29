@@ -4,7 +4,7 @@ from .errors import ErrorCollector, collect_errors
 from .params import load_param_definitions
 from .paramspec import Param, param
 
-__version__ = "1.8.0"
+__version__ = "1.8.1"
 
 __all__ = [
     "setup",

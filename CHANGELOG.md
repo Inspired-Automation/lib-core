@@ -6,6 +6,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-07-29
+
+Documentation only — **no functional change**. The installed package is
+identical to 1.8.0; released so the guidance below has a version to point at.
+
+### Documentation
+- Documented the team-wide convention for persisting the Control Room job id:
+  when a bot writes `ctx.job_id` to a database, `None` is stored as `0`,
+  meaning "not started by the Control Room". `NULL` is the more faithful
+  representation, but not every target column can hold it — some are
+  `NOT NULL`, and some are part of a primary key or unique constraint — and a
+  mixed `NULL`/`0` scheme silently breaks reporting queries. Coalesce at the
+  insert with `0 if ctx.job_id is None else ctx.job_id` (not `or 0`, which is
+  correct only while real job ids are never `0`), document the sentinel beside
+  the column, and use `WHERE job_id > 0` for "real Control Room runs only".
+- Recorded that `ctx.job_id` stays `None` by design and that the library
+  applies no sentinel of its own: the substitution belongs at the boundary
+  that needs it, not in shared library state. `lib-core` touches no databases.
+- Noted that `job_id` is not a run parameter — it is a sibling top-level key
+  of `params` in `job.json`, read as `ctx.job_id`, and must never be declared
+  with `param()` or in `params.json`.
+
+See `CLAUDE.md` ("Storing the Job ID") and `lib-core-spec.md` §3.4.
+
 ## [1.8.0] - 2026-07-26
 
 ### Added

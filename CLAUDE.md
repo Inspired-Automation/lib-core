@@ -53,8 +53,29 @@ Bots can receive run parameters from the Control Room orchestrator. The orchestr
 
 **Enforcing rule (propagate into each bot's CLAUDE.md via the Watchdog scaffold):** *When you add or change code in this bot that reads `ctx.params.get("...")`, you MUST create or update `params.json` at the repo root so every consumed param is declared with its `type` and `required` flag. A param the code reads but does not declare is a bug — the orchestrator will not prompt for it.*
 
+## Storing the Job ID (`job_id` database convention)
+
+The Control Room job id arrives on every orchestrated run and is exposed as `ctx.job_id` — an `int`, or `None` for a hand run or any run the Control Room did not start. It is **not** a run parameter: it sits alongside `params` as its own top-level key in `job.json`, so read it as `ctx.job_id`, never `ctx.params.get("job_id")`, and never declare it with `param()` or in `params.json` (the orchestrator supplies it, so a declaration would only produce a spurious missing-required-param warning).
+
+**The convention:** when a bot writes the job id to a database, `None` is stored as **`0`**, meaning *"not started by the Control Room"*.
+
+`NULL` is the more faithful representation and is what a nullable column should ideally hold, but not every target column can take it — some are `NOT NULL`, and some are part of a primary key or unique constraint, which cannot be `NULL` at all (and in SQL Server a unique index permits only *one* `NULL`, so a second hand run would fail the insert). A mixed scheme is worse than a slightly impure one: if some tables hold `NULL` and others `0` for the same concept, every query needs `WHERE job_id IS NULL OR job_id = 0` and anyone who writes only half of that gets quietly wrong numbers. So `0` is the single rule, applied everywhere.
+
+Applying it:
+- **Coalesce at the insert**, not in application state: `0 if ctx.job_id is None else ctx.job_id`. Keep `ctx.job_id` itself as `None` so the substitution stays visible at the one boundary that needs it.
+- **Avoid `ctx.job_id or 0`.** It is correct only while real job ids are never `0`; the explicit `is None` check does not depend on that.
+- **Document the sentinel** in a comment next to the column definition. A bare `0` is unguessable later.
+- **Exclude it when reporting** — `WHERE job_id > 0` for "real Control Room runs only". `COUNT(DISTINCT job_id)` otherwise counts all hand runs as one shared job.
+
+Known limitation: a job file that is present but unreadable also yields `ctx.job_id = None` (lib-core logs a warning and continues), so a genuine Control Room run records as `0` and is indistinguishable from a hand run in the table. This is rare and accepted; if a given table needs to tell them apart, use a second sentinel (`-1`) for that case rather than changing the meaning of `0`.
+
+`lib-core` deliberately does not implement this — it applies no sentinel and knows nothing about databases. The convention lives in each consuming bot's insert layer.
+
+**Enforcing rule (propagate into each bot's CLAUDE.md via the Watchdog scaffold):** *When this bot persists `ctx.job_id` to a database, store `0` when it is `None` (`0 if ctx.job_id is None else ctx.job_id`), document that `0` means "not started by the Control Room" next to the column, and exclude `0` from run reporting. Never declare `job_id` as a run param.*
+
 ## Key Business Logic
 - **Run params:** `ctx.params` populated from the `--job-file` job.json; each consumed param must be declared in the repo-root `params.json` (see Run Parameters). Reading params never fails a run; a malformed `params.json` does raise at setup.
+- **Job id persistence:** `ctx.job_id` is `None` for hand runs and stored as `0` in databases (see Storing the Job ID). The library applies no sentinel of its own.
 - **Critical errors:** uncaught exceptions in `collect_errors` context manager → immediate notification with traceback → re-raise.
 - **Non-fatal errors:** `errors.add(...)` → written to log immediately + held for end-of-run summary.
 - **Notification rules:**
@@ -69,6 +90,7 @@ Bots can receive run parameters from the Control Room orchestrator. The orchestr
 - Cross-project deployment note (not a lib-core dependency): consuming projects that pull `numpy` (usually transitively via pandas) should pin `numpy<2.4`. numpy 2.4.0 raised the x86-64 build baseline to x86-64-v2, so `import numpy` aborts with `RuntimeError: NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)` on generic/virtualised CPU models (seen on an RDS server). 2.3.x keeps the v1 baseline and has Python 3.14 wheels. Durable fix: have infra set the VM's CPU compatibility mode to a v2-capable model. First hit in `automation-lseg-data-refresh` (2026-07-22).
 
 ## Change Log
+- 2026-07-29: Documented the team-wide `job_id` database convention (store `0` when `ctx.job_id` is `None`, meaning "not started by the Control Room") because not every target column can hold `NULL` — some are `NOT NULL` or part of a key — and a mixed `NULL`/`0` scheme silently breaks reporting queries. Convention only: no code change, `ctx.job_id` still returns `None` and the library applies no sentinel. Guidance for consuming projects, propagated via the Watchdog scaffold. See Storing the Job ID and lib-core-spec.md §3.4; released v1.8.1 (documentation only — the installed package is identical to 1.8.0).
 - 2026-07-26: Added `Context.job_file` and a `cr_errors.json` sidecar written by `collect_errors` next to the job file (schema `{schema, is_critical, error_count, timestamp_utc, errors, traceback}`), so the Control Room agent can read back a run's collected/critical errors after the bot exits and fold them into the job's terminal report. Purely additive: written unconditionally regardless of `notifications.enabled`, a no-op with no job file, never affects the run or the existing Freshservice/email dispatch on a write failure. Notification meta-block error serialization now shares `errors.serialize_errors` (no behaviour change). Documented in lib-core-spec.md §3.4/§5; released v1.8.0.
 - 2026-07-24: Added code-first run-parameter declarations: `param(name, type, *, required, description, choices, default)` and `Param` (exported from `automation_core`). Bots declare params in code (module scope) instead of a hand-written `params.json`; read values with `Param.read(ctx.params)`. The Control Room reads the declarations from source (parses the `param()` calls, does not run the bot). `choices` gives a dropdown. `setup()` validates against the code declarations (params.json is the fallback). Documented in lib-core-spec.md §3.4; released v1.7.0.
 - 2026-07-24: `setup()` falls back to the `CR_JOB_FILE` env var for the job file when `--job-file` is absent (the agent's project-bot wrapper exports it), so `run.bat` project bots that do not forward args to Python still get `ctx.job_id`/`ctx.params`; the argument wins when both are present. Documented in lib-core-spec.md §3.4; released v1.6.0.

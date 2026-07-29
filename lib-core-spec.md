@@ -159,6 +159,12 @@ same never-fail-the-run basis as `params`, folded into the log filename so
 concurrent runs of one bot never share a log file (see §5), and included in
 failure notifications so an alert links back to the exact job (see §4.4).
 
+`ctx.job_id` is deliberately left as `None` rather than coalesced to a
+placeholder: `None` is the truthful value, and any substitute belongs at the
+boundary that needs it. Bots that persist the job id to a `NOT NULL` database
+column substitute `0` there, at the insert — see the team-wide convention in
+CLAUDE.md. The library itself stores nothing and applies no sentinel.
+
 `ctx.job_file` is the path to that same job file (`None` for a hand run). It
 is not meant for bots to read directly; it exists so `collect_errors` (§3.2)
 knows where to write the `cr_errors.json` sidecar described in §4.6.
