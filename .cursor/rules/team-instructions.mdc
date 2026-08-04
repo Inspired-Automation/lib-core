@@ -1,3 +1,9 @@
+---
+description: Team AI Instructions - apply to all AI-assisted work within the BPI Automation Team
+globs:
+alwaysApply: true
+---
+
 # Team AI Instructions
 
 These instructions apply to all AI-assisted work within the BPI Automation Team. Follow them on every task unless the user explicitly overrides a specific rule for that task.
@@ -5,7 +11,7 @@ These instructions apply to all AI-assisted work within the BPI Automation Team.
 ## 1. Languages
 
 - Python and SQL are the defaults. Use them unless the user explicitly requests another language.
-- Target **Python 3.13 or later**.
+- Target **Python 3.14**.
 - Use the SQL dialect appropriate to the target engine (T-SQL for MSSQL, MySQL dialect for Sugar).
 - If the user explicitly requests another language for a task (PowerShell, VBA, Node-RED, JavaScript, etc.), follow that request, but still apply the rest of these rules where they translate (no hardcoded credentials, structured logging, config-driven paths, CLAUDE.md maintained, branding respected).
 
@@ -26,7 +32,7 @@ These instructions apply to all AI-assisted work within the BPI Automation Team.
 | Titan (DEV)     | `DSN=Titan_INSE_DEV` | MSSQL  | Development environment for Titan; new tables are built and tested here first |
 | Titan (PROD)    | `DSN=Titan_INSE`     | MSSQL  | Production environment for Titan    |
 
-Everything other than Sugar is MSSQL by default. New tables and schema changes are always built first against `Titan_INSE_DEV`. They are only promoted to `Titan_INSE` (PROD) via a migration script — see Section 4 below. If a new database is introduced, ask the user for the DSN and engine type and record it in CLAUDE.md.
+Everything other than Sugar is MSSQL by default. New tables and schema changes are always built first against `Titan_INSE_DEV`. They are only promoted to `Titan_INSE` (PROD) via a migration script, see Section 4 below. If a new database is introduced, ask the user for the DSN and engine type and record it in CLAUDE.md.
 
 Example:
 ```python
@@ -158,9 +164,8 @@ One or two sentences describing what this project does and the business problem 
 - APIs called (Graph, Freshservice, ECOES, etc.) and config keys required for each
 
 ## Configuration
-- Code uses sensible defaults; `config/config.yaml` is optional.
-- `config.yaml` is required only if overriding defaults or storing secrets (Graph, Freshservice).
-- Default log root: `I:\BPI\Automation Team\Automated Processes\<project_name>\logs\...`
+- All keys expected in config.yaml
+- Log root folder location
 
 ## Migrations
 | File | DEV applied | PROD applied |
@@ -183,139 +188,114 @@ One or two sentences describing what this project does and the business problem 
 
 ## 6. Configuration
 
-Configuration is split across two files, both loaded automatically by the shared library `automation-core` (see Section 8). Projects must not load these files directly.
-
-### Team-wide config (required, shared across all projects)
-
-Location: `\\inspiredenergysolutions.local\DFS\Public\!IE\BPI\Automation Team\Tools\Scripts\yaml\team.yaml`
-
-Holds credentials and team-wide defaults: Graph credentials, Freshservice credentials, default notification recipient, production root path. Rotated centrally; projects never copy or duplicate these values.
-
-### Project config (optional, per-project)
-
-Location: `config/config.yaml` in the project root.
-
-Used only to override team defaults for that specific project (e.g. notification method, custom log root, custom recipient). May be entirely absent; the library uses team defaults for anything not overridden.
-
-### Rules
-
-- Never load `team.yaml` or `config.yaml` directly from project code. Always go through `automation_core`.
-- Never hardcode credentials, API keys, or paths.
-- Commit `config.example.yaml` to each project showing what *can* be overridden, with every section commented out so the file is documentation rather than active config.
+- All environment-specific values (paths, API keys, log folder, DSN overrides, recipient lists) must live in `config/config.yaml`.
+- Never hardcode credentials, file paths, or API keys in source files.
+- Commit `config.example.yaml` with placeholder values so the team knows what keys are required.
 - Never log secret values, even at debug level.
+- Use `PyYAML` to load config. Use `yaml.safe_load`, never `yaml.load`, to avoid arbitrary code execution from config files.
+
+Example loader:
+```python
+from pathlib import Path
+import yaml
+
+config_path = Path("config/config.yaml")
+with config_path.open("r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
+```
 
 ## 7. Logging
 
-All logging setup is handled by the shared library `automation-core` (see Section 8). Projects must not configure logging directly.
-
-### How it works
-
-- `automation_core.setup(process_name)` configures logging with a file handler and a console handler. A single `logging.info(...)` call writes to both.
-- Log files are written to:
+### Configuration
+- The log root folder must be specified by the user in `config.yaml` under a `logging` key.
+- When prompting the user for a log location, suggest the following base path:
   ```
-  <production_root>\<ProcessName>\logs\<YYYY>\<MonthName>\<DD>\<ProcessName>_<YYYYMMDD>_<HHMMSS>.log
+  I:\BPI\Automation Team\Automated Processes\<ProcessName>
   ```
-  where `<production_root>` is `I:\BPI\Automation Team\Automated Processes` unless overridden in `config.yaml`.
-- The dated folder structure is created at runtime if it does not exist.
-- Format: `%(asctime)s | %(levelname)s | %(name)s | %(message)s`, UTF-8 encoded.
+- Always create a `logs` subfolder beneath that base.
 
-### Rules
-
-- Always call `automation_core.setup(PROCESS_NAME)` at the start of `main()`. Never configure logging manually.
-- Use `logging.info()`, `logging.warning()`, `logging.error()`, etc. as normal once setup is done.
-- `print()` is permitted for casual ad-hoc output that does not need persisting (e.g. quick debugging). Operational events must go through `logging` so they land in the log file.
-- Use `logging.exception(...)` inside `except` blocks to capture the stack trace.
-
-## 8. Shared Library (`automation-core`)
-
-Every project depends on the shared library `automation-core`. It is the single source of truth for logging setup, configuration loading, error collection, and notification dispatch. The library lives at `github.com/Inspired-Automation/lib-core`.
-
-### Requirement
-
-Every project's `requirements.txt` must include the library at a pinned version, for example:
-
+### Folder structure
+Log files must be written to:
 ```
-automation-core==1.0.0
+<log_root>\logs\<YYYY>\<MonthName>\<DD>\
+```
+Where:
+- `YYYY` is the four-digit year
+- `MonthName` is the full month name (January, February, etc.)
+- `DD` is the two-digit day
+
+### File naming
+Each run must produce a uniquely named log file using a timestamp:
+```
+<ProcessName>_YYYYMMDD_HHMMSS.log
 ```
 
-It is installed from the GitHub repo:
+### Implementation rules
+- Use the standard `logging` module for all operational output. Configure it with **two handlers**: a `FileHandler` writing to the timestamped log file, and a `StreamHandler` writing to the console. This gives both a persistent record and visible output when running the script interactively.
+- A single `logging.info(...)` call then writes to both file and console with no need for parallel `print()` calls.
+- `print()` is permitted for casual ad-hoc output that does not need persisting (e.g. quick debugging or one-off scripts), but anything that represents a real operational event must go through `logging` so it lands in the log file.
+- Create the dated folder structure at runtime if it does not exist.
 
-```
-pip install git+https://github.com/Inspired-Automation/lib-core.git@v1.0.0
-```
-
-### Standard usage in `main.py`
-
+Example:
 ```python
-from automation_core import setup, collect_errors
+import logging
+from datetime import datetime
+from pathlib import Path
+import yaml
 
 PROCESS_NAME = "MyProcess"
 
+with Path("config/config.yaml").open("r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
 
-def main() -> None:
-    ctx = setup(PROCESS_NAME)
-    with collect_errors(ctx) as errors:
-        # project work
-        # for non-fatal issues:
-        #   errors.add("description", exception=exc)
-        # for critical issues:
-        #   raise normally; library handles notification
-        pass
+log_root = Path(config["logging"]["log_root"])
 
+now = datetime.now()
+log_dir = log_root / "logs" / f"{now.year:04d}" / now.strftime("%B") / f"{now.day:02d}"
+log_dir.mkdir(parents=True, exist_ok=True)
 
-if __name__ == "__main__":
-    main()
+log_file = log_dir / f"{PROCESS_NAME}_{now.strftime('%Y%m%d_%H%M%S')}.log"
+
+log_format = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+
+file_handler = logging.FileHandler(log_file, encoding="utf-8")
+file_handler.setFormatter(logging.Formatter(log_format))
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter(log_format))
+
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[file_handler, console_handler],
+)
+
+logging.info("Logging initialised. Log file: %s", log_file)
 ```
 
-Everything else (logging configuration, finding team.yaml, deciding whether to notify, sending the email or ticket) is handled inside the library. Projects must not reimplement any of this.
+## 8. Email (Microsoft Graph)
 
-## 9. Error Handling and Notifications
+If a task involves sending email, you must request that the user adds Microsoft Graph API credentials for Outlook to `config.yaml` before proceeding. Expected structure:
 
-The shared library distinguishes two error categories and handles them automatically.
+```yaml
+graph:
+  client_id:
+  client_secret:
+  tenant_id:
+  sender_address:
+```
 
-### Critical errors
-
-Errors that prevent the script completing. The pattern: let them raise. The library's `collect_errors` context manager catches uncaught exceptions, logs them with full traceback, sends an immediate critical-error notification, and re-raises so the process exits non-zero.
-
-### Non-fatal errors
-
-Errors that the script can recover from and continue past (e.g. one record in a batch fails). Use `errors.add(...)` to record them. The library:
-
-- Writes each one to the log file immediately (so they survive a later crash)
-- Holds them for a summary notification at the end of the run
-- Sends a single consolidated summary on normal exit, only if at least one was recorded
-
-### Notification rules
-
-- **No errors** → no notification sent.
-- **Critical error (uncaught exception)** → immediate notification with traceback.
-- **Non-fatal errors collected** → summary notification at end of run.
-- **Method:** email by default, or Freshservice ticket if `notifications.method: freshservice` is set in the project's `config.yaml`.
-- **Default recipient:** `bpiautomation@inspiredenergy.co.uk` (set in `team.yaml`), overridable per-project in `config.yaml`.
-
-### Development vs production behaviour
-
-- The library detects whether the script is running from the production root (`I:\BPI\Automation Team\Automated Processes\...`).
-- If yes: notifications are sent.
-- If no (developer running locally, in a clone elsewhere): notifications are suppressed. Errors still go to the log file and console.
-- Set `AUTOMATION_FORCE_NOTIFY=1` as an environment variable to override the suppression and send notifications even from a development location (useful for testing the notification pipeline).
-
-### Rules for the AI agent
-
-- Never reimplement notification logic. Always use the library.
-- For per-item processing loops, wrap the per-item work in `try/except` and call `errors.add()` on the recoverable cases. Let unexpected exceptions propagate.
-- For setup-time problems (missing config, can't reach a database, etc.), raise immediately. These are critical.
-- Never silently swallow exceptions with bare `except:` or `except Exception: pass`.
-
-## 10. Sending Email or Raising Tickets Outside Error Handling
-
-For business-purpose communications (e.g. a project sends a weekly summary email to a manager, or raises a ticket when a specific business event occurs):
-
-- Credentials are already in `team.yaml`, loaded by the library. The project does not need its own credentials.
-- If the library exposes a helper for sending custom email or creating tickets, use it.
-- If not yet available, ask the user how they would like to proceed before writing direct Graph or Freshservice API calls.
 - Confirm external recipients with the user before sending.
 - Do not send email automatically from any new script without explicit user sign-off on the first run.
+
+## 9. Ticketing (Freshservice)
+
+If a task involves raising tickets, you must request that the user adds Freshservice API credentials to `config.yaml` before proceeding. Expected structure:
+
+```yaml
+freshservice:
+  api_key:
+  domain:
+```
 
 ## 10. User-Facing Output (Branding)
 
@@ -333,7 +313,60 @@ If a task involves anything a user or customer will see (emails, dashboards, PDF
 ## 12. Agent Behaviour
 
 - Ask clarifying questions before making assumptions, especially about data shape, business rules, recipient lists, and target environments.
-- **Show, don't run.** When writing destructive SQL or terminal commands that the user will execute, display them clearly with explicit warnings about destructive effects. Cursor's agent in this team's workflow writes code for the user to run; it does not run SQL directly against project databases.
+- **Never execute terminal commands or SQL statements automatically.** Always show what you intend to run and wait for the user to confirm.
 - For multi-step tasks, summarise the full plan before starting, and check in with the user at meaningful milestones.
 - If the user provides a working query, script, or pattern, treat it as the canonical style for that project.
 - If unsure which DSN, schema, or table to use, ask rather than guess.
+- If setup.bat exists in the project root and automation_core is not importable, suggest the developer run setup.bat before proceeding with code changes.
+
+## 13. Run Parameters (Control Room)
+
+When a bot runs under the Control Room, the run can carry per-run input set on the schedule (the "with params" box), a trigger, a webhook body, or an API job. This input arrives on the run context returned by `automation_core.setup()` as `ctx.params`, a dict, and is the standard way to make one bot do different work on different runs (for example a `region` that differs between two schedules).
+
+- Read only the keys the bot expects, always with a default so a manual run or a param-less schedule still works: `region = ctx.params.get("region", "all")`.
+- Values keep their JSON type: `{"region": "north"}` gives a string, `{"count": 5}` gives an int, `{"enabled": true}` gives a bool, a JSON array gives a list.
+- Event triggers also merge their own details under a `"trigger"` key (the file path, the mail sender and subject, or the upstream job id), so an event-fired bot can find what to process at `ctx.params.get("trigger", {})`.
+- Never expect secrets in params: they are stored and shown in plain text on the Control Room. Secrets belong in `config/config.yaml` (see Section 6).
+- `ctx.params` needs `automation_core` 1.3.0 or later; on older versions it is always empty. Under the Control Room, a project bot receives params only on agent 0.28.1 or later together with `automation_core` 1.6.0 or later: the agent hands the job file to the bot through an environment variable (never on the command line, so a bot that parses its own arguments is never disturbed), and `automation_core` reads that variable from 1.6.0.
+
+#### Declaring params in code (`param()`)
+
+So the Control Room can render a parameter-entry form before a run, every param a bot reads must be declared. Declare each one **in code, at module scope**, with `automation_core.param()`. The code is the single source of truth: the Control Room reads these declarations straight from the bot's source (it parses the `param()` calls, it does not run the bot) to build the form, so a declaration can never drift from what the bot actually reads. Do not hand-write a `params.json` for new code (see the legacy note below). `param()` needs `automation_core` 1.7.0 or later; new projects pin this automatically.
+
+`param(name, type, *, required=False, description="", choices=None, default=None) -> Param`:
+
+| Argument | Meaning |
+|----------|---------|
+| `name` | The key the param is supplied under (what the bot reads). |
+| `type` | The Python builtin `str`, `int`, `float` or `bool` (or its JSON-type name `"string"`/`"integer"`/`"number"`/`"boolean"`). Drives the form widget. |
+| `required` | Whether the form must collect it (default `False`). |
+| `description` | Shown to the user in the form (default `""`). |
+| `choices` | A list restricting the value to a fixed set, rendered as a dropdown (default `None`). |
+| `default` | Returned by `.read()` when the param was not supplied (default `None`). |
+
+Declare at module scope with literal arguments, and read the value inside `main()` with `Param.read(ctx.params)`, which returns the declared default when the param was not supplied:
+
+```python
+from automation_core import setup, collect_errors, param
+
+REGION = param("region", str, required=True, description="Region to process")
+DRY_RUN = param("dry_run", bool, default=False, description="Skip writes")
+MODE = param("mode", str, choices=["fast", "full"], default="fast",
+             description="Processing mode")
+
+
+def main():
+    ctx = setup("MyProcess")
+    with collect_errors(ctx) as errors:
+        region = REGION.read(ctx.params)
+        dry_run = DRY_RUN.read(ctx.params)
+        logging.info("Running for region %s (dry_run=%s)", region, dry_run)
+```
+
+**Enforcing rule:** whenever you add or change code that reads a run parameter, declare it with `param()` at module scope, with literal arguments so the Control Room can read it. A param the bot reads but does not declare is a bug: the Control Room will not prompt for it, so it always falls back to the default. Do not declare params the bot does not read. Declarations describe inputs only and never hold values, so they never contain secrets (see the plain-text warning above).
+
+`automation_core.setup()` validates the supplied params against the declarations and logs a warning for a missing required param, a wrong type, a value outside `choices`, or an undeclared key; validation never fails the run (the Control Room is the primary gate).
+
+#### Legacy: `params.json`
+
+Older bots declared params in a `params.json` file at the repo root instead (a JSON object with a `params` array; each entry `name`, `type`, and optional `required`, `description`, `choices`). The Control Room still reads it as a fallback when a bot declares nothing in code, so existing bots keep working. Do not use it for new code; prefer `param()`. An empty or malformed `params.json` is worse than none (it blocks the form), so when migrating a bot to `param()`, delete its `params.json`.

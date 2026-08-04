@@ -54,7 +54,7 @@ Before tagging, confirm:
    - **Release title:** `vX.Y.Z`
    - **Description:** copy the matching `## [X.Y.Z]` block from `CHANGELOG.md`
    - **Attach the wheel:** drag `dist\automation_core-X.Y.Z-py3-none-any.whl` into
-     the assets box. This step is required — projects that install by wheel URL
+     the assets box. This step is required: projects that install by wheel URL
      get a 404 without it.
    - Leave **Set as the latest release** ticked
    - Click **Publish release**
@@ -89,7 +89,7 @@ automation-core @ https://github.com/Inspired-Automation/lib-core/releases/downl
 
 ## After releasing
 
-- New Watchdog-scaffolded projects pick up the new release automatically (Watchdog fetches the latest release tag at project creation).
+- New Control Room-scaffolded projects pick up the new release automatically (the Control Room fetches the latest release tag at project creation).
 - Existing projects keep their pinned version. To upgrade, edit `requirements.txt` in that project and pin to the new tag.
 - If the release affects day-to-day work for the team (new features, breaking changes, security fixes), let the team know in Teams.
 

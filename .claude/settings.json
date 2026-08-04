@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(./.claude/settings.json)",
+      "Edit(./.claude/team-instructions.md)",
+      "Edit(./.cursor/rules/team-instructions.mdc)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git tag -d:*)",
+      "Bash(git push --delete:*)",
+      "Bash(git push --tags --force:*)"
+    ]
+  }
+}
