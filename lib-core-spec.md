@@ -112,6 +112,24 @@ ctx = setup("TenderWatcher")
 
 `setup()` also accepts an optional `argv` argument (defaulting to `sys.argv[1:]`) used only to locate `--job-file` when reading run params; tests pass it explicitly.
 
+Note what `setup()` does **not** return: the merged configuration. `Context` carries only the derived values the library needs. A bot that wants its own settings calls `load_config()` (3.1.1).
+
+### 3.1.1 `load_config() -> dict`
+
+Returns the merged configuration: `team.yaml` as the base with the project's `config/config.yaml` layered over it, per the merge rules in 2.3. Exported from the top level since **1.9.0**; on earlier versions import it from `automation_core.config`, which also still works.
+
+```python
+from automation_core import setup, collect_errors, load_config
+
+def main() -> None:
+    ctx = setup("TenderWatcher")
+    with collect_errors(ctx) as errors:
+        config = load_config()
+        batch_size = config.get("processing", {}).get("batch_size", 100)
+```
+
+It reads both files on each call rather than returning what `setup()` cached, so it does not depend on `setup()` having run. It raises `ConfigurationError` when the team share is unreachable, which is intentional: a bot that cannot read `team.yaml` has no notification recipient and should stop rather than run half-configured. That exception stays importable from `automation_core.config` only, since handling it is not the expected behaviour.
+
 ### 3.2 `collect_errors(ctx) -> ErrorCollector`
 
 Context manager that collects non-fatal errors and dispatches notifications on exit.

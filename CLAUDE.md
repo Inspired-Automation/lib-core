@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+@.claude/team-instructions.md
+
+The line above imports the team's AI instructions, so they apply in Claude Code as well as in Cursor (Cursor reads its own copy at `.cursor/rules/team-instructions.mdc`, always, from that file's `alwaysApply` frontmatter). Both copies are the same instructions at the same version, copied from the `config-cursor-rules` repo: edit neither here, change them there and re-copy both. They are the team's standing rules; this file is the context for this library specifically. Where the two disagree about this library, this file wins, and the disagreement should be written down here rather than left implicit.
+
 ## Purpose
 `automation-core` is the shared Python library used by every project in the Inspired-Automation team. It provides standard logging setup, configuration loading from `team.yaml` and `config.yaml`, error collection, and notification dispatch (email via Microsoft Graph or tickets via Freshservice).
 
@@ -23,58 +27,62 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 - Reads `team.yaml` from `\\inspiredenergysolutions.local\DFS\Public\!IES\BPI\Automation Team\Tools\Scripts\yaml\team.yaml` (required)
 - Reads `config/config.yaml` from the consuming project's root (optional)
 - The library itself has no config file
+- `load_config()` is the public accessor for the merged result, exported from the top level since v1.9.0. `setup()` reads the same config but does not return it: `Context` carries only the derived values the library needs, so a bot wanting an arbitrary key calls `load_config()` rather than opening the files itself. `ConfigurationError` stays submodule-only on purpose (`automation_core.config`): a bot that cannot read `team.yaml` should stop, not handle it.
 
 ## Migrations
 | File | DEV applied | PROD applied |
 |------|-------------|--------------|
 | _no migrations - library does not touch databases_ | | |
 
-## Run Parameters (`params.json` contract)
-Bots can receive run parameters from the Control Room orchestrator. The orchestrator invokes a bot as `python.exe <script> --job-file <path>`; that `job.json` carries a `params` object, which `setup()` exposes as `ctx.params` (read with `ctx.params.get("name", default)`).
+## Run Parameters (code-first `param()` declarations)
+Bots can receive run parameters from the Control Room. It invokes a bot as `python.exe <script> --job-file <path>` (or via the `CR_JOB_FILE` env var); that `job.json` carries a `params` object, which `setup()` exposes as `ctx.params`.
 
-**The contract:** so the orchestrator can render a parameter-entry GUI *before* it starts a run, every bot that consumes run params must ship a `params.json` at its repo root declaring those params. The orchestrator reads this file to build the form; `lib-core` reads it to validate what was actually supplied.
+**The contract (since v1.7.0):** so the Control Room can render a parameter-entry form *before* it starts a run, every param a bot reads must be declared **in code, at module scope**, with `param()`. The code is the single source of truth: the Control Room parses the `param()` calls out of the bot's source (it does not run the bot), so a declaration cannot drift from the code that reads it.
 
-`params.json` — a JSON object with a `params` array; each entry has:
-- `name` (string, required) — the key the bot reads via `ctx.params.get(name)`.
-- `type` (string, required) — one of `string`, `integer`, `number`, `boolean`.
-- `required` (bool, optional, default `false`) — whether the GUI must collect it.
-- `description` (string, optional) — shown to the user in the GUI.
+`param(name, type, *, required=False, description="", choices=None, default=None) -> Param`, exported from `automation_core`. Declare at module scope with literal arguments, and read inside `main()` with `Param.read(ctx.params)`, which returns the declared default when the param was not supplied:
 
-```json
-{
-  "params": [
-    { "name": "region", "type": "string", "required": true, "description": "Region to process" },
-    { "name": "dry_run", "type": "boolean", "required": false, "description": "Skip writes" }
-  ]
-}
+```python
+from automation_core import setup, collect_errors, param
+
+REGION = param("region", str, required=True, description="Region to process")
+DRY_RUN = param("dry_run", bool, default=False, description="Skip writes")
+MODE = param("mode", str, choices=["fast", "full"], default="fast")
+
+
+def main() -> None:
+    ctx = setup("MyProcess")
+    with collect_errors(ctx) as errors:
+        region = REGION.read(ctx.params)
 ```
 
-`lib-core` support (in `automation_core.params`): `load_param_definitions()` reads and validates `params.json` (raising `ConfigurationError` on a malformed file — a bot developer error, like a bad `freshservice.defaults` block), and `setup()` validates the supplied `ctx.params` against the declarations, logging any mismatch (missing required, wrong type, undeclared key) as a **warning** without failing the run — the orchestrator is the primary gate on required params.
+`lib-core` support: `paramspec.declared_params()` returns the registry of `param()` calls made at import time, and `setup()` validates the supplied `ctx.params` against it, logging any mismatch (missing required, wrong type, value outside `choices`, undeclared key) as a **warning** without failing the run. The Control Room is the primary gate on required params.
 
-**Enforcing rule (propagate into each bot's CLAUDE.md via the Watchdog scaffold):** *When you add or change code in this bot that reads `ctx.params.get("...")`, you MUST create or update `params.json` at the repo root so every consumed param is declared with its `type` and `required` flag. A param the code reads but does not declare is a bug — the orchestrator will not prompt for it.*
+**Legacy `params.json`:** bots written before v1.7.0 declared params in a repo-root `params.json` instead (a JSON object with a `params` array; entries of `name`, `type`, and optional `required`, `description`, `choices`). `setup()` still falls back to it via `load_param_definitions()` when a bot declares nothing in code, so those bots keep working, and a malformed file still raises `ConfigurationError` (a bot developer error, like a bad `freshservice.defaults` block). Do not use it for new code. When migrating a bot to `param()`, delete its `params.json`: an empty or malformed one is worse than none, because it blocks the Control Room's form.
+
+**Enforcing rule (propagated into each bot's CLAUDE.md by the Control Room scaffold):** *When you add or change code in this bot that reads a run parameter, declare it with `param()` at module scope, with literal arguments. A param the code reads but does not declare is a bug: the Control Room will not prompt for it, so it always falls back to the default. Do not declare params the bot does not read.*
 
 ## Storing the Job ID (`job_id` database convention)
 
-The Control Room job id arrives on every orchestrated run and is exposed as `ctx.job_id` — an `int`, or `None` for a hand run or any run the Control Room did not start. It is **not** a run parameter: it sits alongside `params` as its own top-level key in `job.json`, so read it as `ctx.job_id`, never `ctx.params.get("job_id")`, and never declare it with `param()` or in `params.json` (the orchestrator supplies it, so a declaration would only produce a spurious missing-required-param warning).
+The Control Room job id arrives on every orchestrated run and is exposed as `ctx.job_id`: an `int`, or `None` for a hand run or any run the Control Room did not start. It is **not** a run parameter: it sits alongside `params` as its own top-level key in `job.json`, so read it as `ctx.job_id`, never `ctx.params.get("job_id")`, and never declare it with `param()` or in `params.json` (the Control Room supplies it, so a declaration would only produce a spurious missing-required-param warning).
 
 **The convention:** when a bot writes the job id to a database, `None` is stored as **`0`**, meaning *"not started by the Control Room"*.
 
-`NULL` is the more faithful representation and is what a nullable column should ideally hold, but not every target column can take it — some are `NOT NULL`, and some are part of a primary key or unique constraint, which cannot be `NULL` at all (and in SQL Server a unique index permits only *one* `NULL`, so a second hand run would fail the insert). A mixed scheme is worse than a slightly impure one: if some tables hold `NULL` and others `0` for the same concept, every query needs `WHERE job_id IS NULL OR job_id = 0` and anyone who writes only half of that gets quietly wrong numbers. So `0` is the single rule, applied everywhere.
+`NULL` is the more faithful representation and is what a nullable column should ideally hold, but not every target column can take it: some are `NOT NULL`, and some are part of a primary key or unique constraint, which cannot be `NULL` at all (and in SQL Server a unique index permits only *one* `NULL`, so a second hand run would fail the insert). A mixed scheme is worse than a slightly impure one: if some tables hold `NULL` and others `0` for the same concept, every query needs `WHERE job_id IS NULL OR job_id = 0` and anyone who writes only half of that gets quietly wrong numbers. So `0` is the single rule, applied everywhere.
 
 Applying it:
 - **Coalesce at the insert**, not in application state: `0 if ctx.job_id is None else ctx.job_id`. Keep `ctx.job_id` itself as `None` so the substitution stays visible at the one boundary that needs it.
 - **Avoid `ctx.job_id or 0`.** It is correct only while real job ids are never `0`; the explicit `is None` check does not depend on that.
 - **Document the sentinel** in a comment next to the column definition. A bare `0` is unguessable later.
-- **Exclude it when reporting** — `WHERE job_id > 0` for "real Control Room runs only". `COUNT(DISTINCT job_id)` otherwise counts all hand runs as one shared job.
+- **Exclude it when reporting:** `WHERE job_id > 0` for "real Control Room runs only". `COUNT(DISTINCT job_id)` otherwise counts all hand runs as one shared job.
 
 Known limitation: a job file that is present but unreadable also yields `ctx.job_id = None` (lib-core logs a warning and continues), so a genuine Control Room run records as `0` and is indistinguishable from a hand run in the table. This is rare and accepted; if a given table needs to tell them apart, use a second sentinel (`-1`) for that case rather than changing the meaning of `0`.
 
-`lib-core` deliberately does not implement this — it applies no sentinel and knows nothing about databases. The convention lives in each consuming bot's insert layer.
+`lib-core` deliberately does not implement this: it applies no sentinel and knows nothing about databases. The convention lives in each consuming bot's insert layer.
 
-**Enforcing rule (propagate into each bot's CLAUDE.md via the Watchdog scaffold):** *When this bot persists `ctx.job_id` to a database, store `0` when it is `None` (`0 if ctx.job_id is None else ctx.job_id`), document that `0` means "not started by the Control Room" next to the column, and exclude `0` from run reporting. Never declare `job_id` as a run param.*
+**Enforcing rule (propagated into each bot's CLAUDE.md by the Control Room scaffold):** *When this bot persists `ctx.job_id` to a database, store `0` when it is `None` (`0 if ctx.job_id is None else ctx.job_id`), document that `0` means "not started by the Control Room" next to the column, and exclude `0` from run reporting. Never declare `job_id` as a run param.*
 
 ## Key Business Logic
-- **Run params:** `ctx.params` populated from the `--job-file` job.json; each consumed param must be declared in the repo-root `params.json` (see Run Parameters). Reading params never fails a run; a malformed `params.json` does raise at setup.
+- **Run params:** `ctx.params` populated from the `--job-file` job.json (or `CR_JOB_FILE`); each consumed param must be declared in code with `param()` at module scope, with a legacy `params.json` as the fallback for unmigrated bots (see Run Parameters). Reading params never fails a run; a malformed `params.json` does raise at setup.
 - **Job id persistence:** `ctx.job_id` is `None` for hand runs and stored as `0` in databases (see Storing the Job ID). The library applies no sentinel of its own.
 - **Critical errors:** uncaught exceptions in `collect_errors` context manager → immediate notification with traceback → re-raise.
 - **Non-fatal errors:** `errors.add(...)` → written to log immediately + held for end-of-run summary.
@@ -89,8 +97,15 @@ Known limitation: a job file that is present but unreadable also yields `ctx.job
 - If Graph or Freshservice API calls fail when dispatching a notification, the library logs loudly but does not crash the consuming project.
 - Cross-project deployment note (not a lib-core dependency): consuming projects that pull `numpy` (usually transitively via pandas) should pin `numpy<2.4`. numpy 2.4.0 raised the x86-64 build baseline to x86-64-v2, so `import numpy` aborts with `RuntimeError: NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)` on generic/virtualised CPU models (seen on an RDS server). 2.3.x keeps the v1 baseline and has Python 3.14 wheels. Durable fix: have infra set the VM's CPU compatibility mode to a v2-capable model. First hit in `automation-lseg-data-refresh` (2026-07-22).
 
+## AI guardrails
+- `.claude/settings.json` denies the git actions `RELEASING.md` calls irreversible: deleting tags, force-pushing tags, and force-pushing branches. It also protects the guardrail files themselves, meaning that settings file and both copies of the team instructions. Editing an already-published `CHANGELOG.md` entry cannot be expressed as a rule (the file legitimately changes on every release), so that one stays a written rule only.
+- Deny rules are in force from the moment the repo is cloned. Allow rules are not, until the workspace is trusted, so that file deliberately has no allow list.
+- A release is a human action. Never tag, build a wheel, or publish a GitHub release on your own initiative. When the developer explicitly asks for a release, follow `RELEASING.md` step by step and confirm before publishing anything public.
+
 ## Change Log
-- 2026-07-29: Documented the team-wide `job_id` database convention (store `0` when `ctx.job_id` is `None`, meaning "not started by the Control Room") because not every target column can hold `NULL` — some are `NOT NULL` or part of a key — and a mixed `NULL`/`0` scheme silently breaks reporting queries. Convention only: no code change, `ctx.job_id` still returns `None` and the library applies no sentinel. Guidance for consuming projects, propagated via the Watchdog scaffold. See Storing the Job ID and lib-core-spec.md §3.4; released v1.8.1 (documentation only — the installed package is identical to 1.8.0).
+- 2026-08-04: Exported `load_config` from the top-level package (`from automation_core import load_config`), so a bot needing its own settings has a supported way to read the merged `team.yaml` plus `config/config.yaml`. Previously the only routes were re-implementing the loader and the hardcoded share path, or importing `automation_core.config`, which the team instructions had to spell out as an exception. Purely additive: the submodule import still works and remains the form for 1.8.1 and earlier. `ConfigurationError` left submodule-only deliberately. Documented in lib-core-spec.md §3.1.1; released v1.9.0.
+- 2026-08-04: AI config only, no functional change and no release. Moved the team instructions to `.cursor/rules/team-instructions.mdc` (Cursor only scans that directory, so the old `.cursor/team-instructions.mdc` was loaded by nothing) and refreshed them from `config-cursor-rules` at `8f7d68b`, which this repo's copy was 29 lines behind. Added `.claude/team-instructions.md`, the same instructions imported by this file, because Claude Code's `@import` follows `.md` only and resolves an `.mdc` to nothing without erroring. Added `.claude/settings.json` deny rules and an AI guardrails section recording them, which bars agent-initiated releases while allowing one the developer explicitly asks for. Rewrote Run Parameters for the code-first `param()` contract, which this library has shipped since v1.7.0 while this file still described `params.json` as the contract. Dropped em-dashes and stale Watchdog references. None of this reaches the wheel, which packages `src/automation_core` only.
+- 2026-07-29: Documented the team-wide `job_id` database convention (store `0` when `ctx.job_id` is `None`, meaning "not started by the Control Room") because not every target column can hold `NULL` (some are `NOT NULL` or part of a key) and a mixed `NULL`/`0` scheme silently breaks reporting queries. Convention only: no code change, `ctx.job_id` still returns `None` and the library applies no sentinel. Guidance for consuming projects, propagated via the Watchdog scaffold. See Storing the Job ID and lib-core-spec.md §3.4; released v1.8.1 (documentation only: the installed package is identical to 1.8.0).
 - 2026-07-26: Added `Context.job_file` and a `cr_errors.json` sidecar written by `collect_errors` next to the job file (schema `{schema, is_critical, error_count, timestamp_utc, errors, traceback}`), so the Control Room agent can read back a run's collected/critical errors after the bot exits and fold them into the job's terminal report. Purely additive: written unconditionally regardless of `notifications.enabled`, a no-op with no job file, never affects the run or the existing Freshservice/email dispatch on a write failure. Notification meta-block error serialization now shares `errors.serialize_errors` (no behaviour change). Documented in lib-core-spec.md §3.4/§5; released v1.8.0.
 - 2026-07-24: Added code-first run-parameter declarations: `param(name, type, *, required, description, choices, default)` and `Param` (exported from `automation_core`). Bots declare params in code (module scope) instead of a hand-written `params.json`; read values with `Param.read(ctx.params)`. The Control Room reads the declarations from source (parses the `param()` calls, does not run the bot). `choices` gives a dropdown. `setup()` validates against the code declarations (params.json is the fallback). Documented in lib-core-spec.md §3.4; released v1.7.0.
 - 2026-07-24: `setup()` falls back to the `CR_JOB_FILE` env var for the job file when `--job-file` is absent (the agent's project-bot wrapper exports it), so `run.bat` project bots that do not forward args to Python still get `ctx.job_id`/`ctx.params`; the argument wins when both are present. Documented in lib-core-spec.md §3.4; released v1.6.0.
@@ -98,7 +113,7 @@ Known limitation: a job file that is present but unreadable also yields `ctx.job
 - 2026-07-22: Fixed broken `TEAM_YAML_PATH` (`\Public\!IE\` → `\Public\!IES\`, a missing `S` from the 2026-07-15 UNC conversion) that made every `setup()` on 1.3.0/1.4.0 raise `ConfigurationError`; released v1.4.1. `!IES` confirmed as the real share (Control Room uses it too).
 - 2026-07-22: Added the `params.json` run-parameter declarations contract (repo-root file declaring each consumed param for the orchestrator's GUI), plus `automation_core.load_param_definitions()` and setup-time validation of supplied params. Documented in lib-core-spec.md §3.4; released v1.4.0.
 - 2026-07-22: Added `Context.params` (run params from a `--job-file` job.json) and a machine-readable JSON meta block in notification bodies (wrapped in `---AUTOMATION-META-BEGIN/END---` markers for downstream flows); folded in the UNC `TEAM_YAML_PATH` change; released v1.3.0.
-- 2026-07-22: Documented a cross-project deployment gotcha (numpy 2.4 x86-64-v2 baseline crash on virtualised/RDS CPUs; pin `numpy<2.4`). Not a lib-core dependency — guidance for consuming projects. See Known Gotchas.
+- 2026-07-22: Documented a cross-project deployment gotcha (numpy 2.4 x86-64-v2 baseline crash on virtualised/RDS CPUs; pin `numpy<2.4`). Not a lib-core dependency, guidance for consuming projects. See Known Gotchas.
 - 2026-07-15: `TEAM_YAML_PATH` switched from mapped `I:` drive to UNC path under `\\inspiredenergysolutions.local\DFS\Public\!IES\...`.
 - 2026-07-08: Releases now include a built wheel as a GitHub release asset, so projects can pin by wheel URL; RELEASING.md updated.
 - 2026-07-08: Lowered minimum Python from 3.14 to 3.13 (`requires-python = ">=3.13"`); fixed stale `__version__`; released v1.2.2.
@@ -109,4 +124,4 @@ Known limitation: a job file that is present but unreadable also yields `ctx.job
 - 2026-06-01: Initial scaffold from spec.
 
 ## Outstanding TODOs
-- Tag and release v1.0.0 on GitHub (`git tag v1.0.0 && git push --tags`).
+- Once v1.9.0 is published, switch the team instructions (Section 6 in `config-cursor-rules`) to the top-level `from automation_core import load_config`, noting it needs 1.9.0 or later. Left until then on purpose: new projects pin the latest **release**, so telling bots to use an import that no released wheel exports would break them.

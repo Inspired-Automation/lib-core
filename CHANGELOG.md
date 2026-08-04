@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-04
+
+### Added
+- `load_config` is now exported from the top-level package, so a bot that
+  needs its own settings can `from automation_core import load_config`
+  instead of reaching into `automation_core.config`. It returns the
+  merged configuration (`team.yaml` with the project's
+  `config/config.yaml` layered over it), which is what `setup()` reads
+  internally but does not return: `Context` carries only the derived
+  values the library itself needs. There was no supported way to read an
+  arbitrary config key, so every bot either re-implemented the loader
+  and the share path or imported a submodule the docs had to call out as
+  an exception.
+
+Backward compatible in both directions: `from automation_core.config
+import load_config` keeps working and stays the form to use on 1.8.1 and
+earlier. `ConfigurationError` is deliberately still submodule-only, in
+line with the guidance that a bot which cannot read `team.yaml` should
+stop rather than handle it.
+
 ## [1.8.1] - 2026-07-29
 
 Documentation only — **no functional change**. The installed package is
