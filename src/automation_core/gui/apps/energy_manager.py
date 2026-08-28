@@ -43,7 +43,7 @@ from typing import Any
 
 import yaml
 
-from .. import controls, windows
+from .. import controls, monitor, windows
 from ..app import GuiApp
 
 logger = logging.getLogger(__name__)
@@ -271,6 +271,77 @@ class EnergyManager(GuiApp):
             return True
         except Exception:
             return False
+
+
+    # -- monitoring a long operation --------------------------------------
+    #: The dialogs Energy Manager raises when an operation fails. Taken from
+    #: the Automation Anywhere bots, which poll for exactly these. They are
+    #: plain Win32 MessageBoxes, so they are matched on caption plus static
+    #: text, and always scoped to EM's own process id.
+    ERROR_DIALOGS = (
+        monitor.ErrorDialog("Internet Connection Error"),
+        monitor.ErrorDialog("Unexpected Error"),
+        monitor.ErrorDialog("Error", contains="Error"),
+    )
+
+    def wait_for_operation(
+        self,
+        *,
+        is_running,
+        timeout_minutes: float,
+        poll_seconds: float = 60.0,
+        description: str = "operation",
+        capture_screenshot=None,
+    ) -> monitor.MonitorResult:
+        """Watch a download, upload or calculation through to its end.
+
+        These run for **hours**, so this is not a `wait` with a bigger number:
+        it polls, logs a heartbeat so the run does not look hung, watches for
+        the error dialogs EM raises, dismisses them, and captures a screenshot
+        of anything that goes wrong.
+
+        `timeout_minutes` should come from config and differ per operation:
+        the AA bots carry separate download and upload limits because the two
+        do not take the same time.
+
+        Pass `is_running` from `progress_window_running` or
+        `progress_control_running` below, depending on how the operation
+        reports itself. Both read window state only and send the application
+        nothing.
+        """
+        def dismiss(handle: int, button: str) -> None:
+            dialog = self.window(handle)
+            controls.click(dialog.child_window(title=button, class_name="Button"),
+                           timeout=10)
+
+        return monitor.wait_for_operation(
+            is_running=is_running,
+            process_ids=lambda: self.pids,
+            timeout_minutes=timeout_minutes,
+            poll_seconds=poll_seconds,
+            error_dialogs=self.ERROR_DIALOGS,
+            dismiss=dismiss,
+            capture_screenshot=capture_screenshot,
+            description=description,
+        )
+
+    def progress_window_running(self, caption: str = "Downloading"):
+        """Still-running test for an operation that opens its own window.
+
+        Energy Manager shows a top-level `Downloading` window for a period
+        download, and `Upload in Progress` for an upload.
+        """
+        return monitor.window_gone(caption, lambda: self.pids)
+
+    def progress_control_running(self, handle: int):
+        """Still-running test for an operation that shows an in-form progress bar.
+
+        Import New Data opens no window at all: it puts a ProgressBar inside
+        frmProfileCollectorList's toolbar, so a monitor watching the desktop
+        for dialogs would wait forever. Find that control's handle first, then
+        pass it here.
+        """
+        return monitor.control_gone(handle)
 
     def web_extensions_login(self, username: str, password: str) -> Any:
         """Fill the User Details group on the Web Extensions form.

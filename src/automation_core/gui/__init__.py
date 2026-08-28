@@ -20,9 +20,10 @@ GUI carries none of the dependency.
 
 from __future__ import annotations
 
-from . import controls, windows
+from . import controls, monitor, windows
 from .app import BACKENDS, GuiApp
 from .controls import READY, ControlNotReady, ControlOffScreen
+from .monitor import ErrorDialog, MonitorResult, Outcome, wait_for_operation
 from .keys import is_shortcut, to_send_keys
 from .windows import WindowInfo, find_window, list_windows, process_ids, wait_for_window
 
@@ -31,6 +32,11 @@ __all__ = [
     "BACKENDS",
     "controls",
     "windows",
+    "monitor",
+    "wait_for_operation",
+    "MonitorResult",
+    "Outcome",
+    "ErrorDialog",
     "READY",
     "ControlNotReady",
     "ControlOffScreen",

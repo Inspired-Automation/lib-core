@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-08-28
+
+### Added
+- `automation_core.gui.monitor`, for operations that run for hours rather than seconds. A bigger timeout is not the answer to a long operation: it has to be watched, because it can fail halfway with a dialog, it can hang, and something has to show it is still alive.
+  - `wait_for_operation()` polls a caller-supplied "is it still running" test, watches for the application's error dialogs on every poll, dismisses them, captures a screenshot of any failure, and emits a heartbeat so a multi-hour run does not look hung. Returns a `MonitorResult` with an `Outcome` rather than raising: a failed operation is something to log and report, not an exception for someone else to catch.
+  - The shape is taken from the Automation Anywhere bots this library replaces, and preserves four details that a naive implementation gets wrong. Completion is checked **before** sleeping, so a fast operation is not held for a full interval. The timeout is **per operation** and comes from config, because a download and an upload do not take the same time. Errors are looked for on **every poll** rather than waited for. Every failure path captures evidence before acting.
+  - `window_gone()` and `control_gone()` cover the two ways an operation reports progress: a top-level window of its own, or a progress bar inside an existing form that opens no window at all. Both read only `IsWindow` and `IsWindowVisible`, so nothing is sent to the application. Reading a progress bar's actual position is deliberately not offered: the neighbouring `PBM_GETRANGE` takes a pointer that the target dereferences in its own process, and getting it wrong crashes the application being automated.
+- `EnergyManager.wait_for_operation()`, wired to Energy Manager's real error dialogs (`Internet Connection Error`, `Unexpected Error`), with `progress_window_running()` and `progress_control_running()` for the two cases above.
+- `run_parameters` in `energy_manager.yaml`: what the Automation Anywhere bots' `strType`, `intMONLY`, `intCalculateVirtual` and `intDuration` actually meant, and why `strUid` is not carried over.
+
+### Fixed
+- `poll_count()` rejects a non-positive poll interval instead of dividing by it. The first implementation raised `ZeroDivisionError`; the obvious patch, treating zero as "poll every second", would have turned a caller's typo into a loop that spins a core for hours. Tests that want no delay inject a no-op `sleep` into `wait_for_operation` instead, so they exercise the real control flow at realistic intervals: a simulated two-hour download at 60-second polling runs all 120 polls instantly.
+
+
 ## [1.11.0] - 2026-08-28
 
 ### Added

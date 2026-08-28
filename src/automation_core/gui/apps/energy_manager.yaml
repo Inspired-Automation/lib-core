@@ -93,6 +93,44 @@ credentials:
     password_key: web_password
     used_by: the User Details group inside the Web Extensions form
 
+# Run parameters the Automation Anywhere bots took, and what they mean.
+# Confirmed by the developer 2026-08-28. In the migrated design these arrive
+# as Control Room run parameters declared with automation_core.param(),
+# EXCEPT the credentials, which are config, never params.
+run_parameters:
+  operation:
+    was: strType
+    meaning: which operation to run
+    values: [upload, download, download only]
+  marked_only:
+    was: intMONLY
+    type: flag
+    meaning: >-
+      Restrict the operation to marked data sets only. Drives the
+      optUploadFlagged / optUploadAll radio pair in grpOptions on frmWeb.
+  calculate_virtual:
+    was: intCalculateVirtual
+    type: flag
+    values: [0, 1]
+    meaning: whether to calculate virtual data sets after the main operation
+  duration_months:
+    was: intDuration
+    type: integer
+    meaning: >-
+      Months of history for a period download. The AA bot defaulted to 12.
+      Feeds the date typed into the Import For Period date control.
+  instance:
+    was: vEMWindowName / vEMlocation
+    meaning: >-
+      Which Energy Manager instance or database to drive. The AA bot looped
+      over instances read from a table; the migrated bot receives exactly one
+      at runtime and an orchestrator handles the fan-out.
+  not_carried_over:
+    strUid: >-
+      A unique identifier the caller created so it knew which fields to
+      update once the bot had run. The orchestrator tracks its own runs, so
+      this is not needed.
+
 # The launch and login sequence, verified end to end.
 flows:
   login:
