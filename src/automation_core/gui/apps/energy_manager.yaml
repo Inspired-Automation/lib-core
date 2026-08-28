@@ -1,0 +1,300 @@
+# Energy Manager knowledge base
+#
+# What a bot needs to know to drive Energy Manager: which backend to use for
+# which region of the UI, how to log in, where the forms and controls are,
+# and which commands have keyboard shortcuts.
+#
+# Every selector here resolved to exactly one element when it was harvested,
+# against the live application, using the discovery tools in the
+# automation-energy-manager-poc-gui-automation repository. Nothing in this
+# file is inferred from the Automation Anywhere bots it replaces.
+#
+# REGENERATING: do not hand-edit selectors. Re-harvest with
+#   python src/tools/ui_tree_snapshot.py --title "SystemsLink" \
+#          --backend both --verify --label em-main
+# and update `harvested` below. A map that is not refreshed after an
+# application upgrade is worse than none, because it is believed.
+
+meta:
+  application: Energy Manager (SystemsLink)
+  process_name: EM.exe
+  framework: .NET WinForms, with DevExpress ribbon and XtraGrid controls
+  shell: MDI - one MdiClient hosting several child forms at once
+  harvested: 2026-08-28
+  # The volatile part of every WinForms class name in this build. It changes
+  # when the application is rebuilt, which is the signal to re-harvest.
+  build_marker: app.0.1a0e24_r7_ad1
+  launch_seconds_observed: [42, 55, 95, 174]
+  # Measured end to end through automation_core.gui on 2026-08-28.
+  login_seconds_observed: 77
+  web_extensions_open_seconds_observed: 17
+
+# Which backend for which part of the UI. Measured, not assumed: this is the
+# opposite of the usual "UIA for anything modern" advice.
+backends:
+  default: win32
+  regions:
+    forms:
+      backend: win32
+      why: >-
+        77 nodes in 42ms with 71.4% carrying a designer name, against UIA's
+        223 nodes in 6.7 seconds and 24.2%. The win32 backend reads WinForms
+        designer names through WM_GETCONTROLNAME and the CLR type through
+        WM_GETCONTROLTYPE, so it is both faster and more informative here.
+    drawn_controls:
+      backend: uia
+      applies_to: [rbnMain, "tsMain (Main Toolbar)", "DevExpress grid cells"]
+      why: >-
+        Anything whose items are DRAWN rather than created as child windows
+        is invisible to win32. Confirmed three times: the DevExpress ribbon
+        (rbnMain), the WinForms ToolStrip on frmProfileCollectorList (win32
+        reports zero children, UIA shows Import New Data / Import For Period
+        / Show Unmatched Meters), and DevExpress grid cells. The rule is not
+        "ribbons need UIA", it is "drawn items need UIA".
+
+# Things that resolve uniquely and are still wrong. Do not use any of these
+# as a selector in this application.
+never_use:
+  - field: class_name
+    why: >-
+      Ends in a per-process suffix (WindowsForms10.EDIT.app.0.1a0e24_r7_ad1)
+      that changes when the application is rebuilt. Use class_name_re against
+      the stable head if you need class at all.
+  - field: control_id
+    why: >-
+      Derived from the window handle for WinForms controls. tsMain reported
+      2297934 on one run and a different number on the next.
+  - field: window title matching
+    why: >-
+      pywinauto's title= matches on WM_GETTEXT, which a busy or wedged UI
+      thread does not answer. EM's login form answered on a clean launch and
+      then returned empty for minutes after a rejected login. Find windows by
+      handle via EnumWindows and GetWindowText instead.
+
+# Two DIFFERENT accounts. The application login and the Web Extensions login
+# are not the same credential; an earlier spike used one for both and its
+# login could never have worked.
+credentials:
+  application:
+    username_key: app_username
+    password_key: app_password
+    used_by: the Enter Password window at startup
+  web_extensions:
+    username_key: web_username
+    password_key: web_password
+    used_by: the User Details group inside the Web Extensions form
+
+# The launch and login sequence, verified end to end.
+flows:
+  login:
+    description: Launch Energy Manager and reach the main shell.
+    steps:
+      - window: login
+        wait_seconds: 300
+        actions:
+          - select: cmbNames
+            value_from: app_username
+          - set_text: txtPassword
+            value_from: app_password
+          - click: cmdOk
+      - window: client_group
+        wait_seconds: 60
+        actions:
+          # cmbClients defaults to {All Clients}; set it only if a specific
+          # group is needed.
+          - click: cmdOk
+      - window: main
+        wait_seconds: 180
+    notes: >-
+      A fresh login does NOT open the Web Extensions form. The MdiClient
+      holds frmDataQueryReminder, frmDataSets and frmSites only, so Web
+      Extensions must be opened from the ribbon afterwards.
+
+# Top-level windows, found by cached caption and then addressed by handle.
+windows:
+  login:
+    caption: Enter Password
+    clr_type: SystemsLink.LoginForm
+    automation_id: LoginForm
+    addressability: 100% named, 9 of 9 controls uniquely addressable
+    controls:
+      cmbClients: {type: ComboBox, label: "Client Group:", default: "{All Clients}"}
+      cmbNames: {type: ComboBox, label: "User Name:", note: "remembers the last user; select explicitly"}
+      txtPassword: {type: Edit, label: "Password:"}
+      cmdOk: {type: Button, caption: "Ok"}
+      cmdCancel: {type: Button, caption: "Cancel"}
+
+  client_group:
+    caption: Client Group
+    clr_type: SystemsLink.ClientGroupForm
+    automation_id: ClientGroupForm
+    appears: after a successful login
+    controls:
+      txtName: {type: Edit, note: "shows the logged-in user, read-only in practice"}
+      cmbClients: {type: ComboBox, default: "{All Clients}"}
+      cmdOk: {type: Button, caption: "Ok"}
+      cmdCancel: {type: Button, caption: "Cancel"}
+
+  main:
+    caption: SystemsLink
+    clr_type: SystemsLink.frmMain
+    automation_id: frmMain
+    note: >-
+      Caption is "SystemsLink - IES 1" but varies; match on the substring.
+      Contains tsMain, mnuMain, the MdiClient and rbnMain.
+
+  error:
+    caption: Error
+    class_name: "#32770"
+    note: >-
+      A plain Win32 MessageBox, NOT a WinForms form: no designer names on
+      anything. Match on the caption plus the static text, always scoped to
+      EM's own process id so another application's Error window cannot be
+      mistaken for it. A rejected login produces the static text
+      "Password Incorrect."
+
+# MDI child forms. A designer name is unique within its own form, not across
+# the application, so ALWAYS scope a control lookup to its form first.
+# tsMain is the worked example: it exists three times.
+forms:
+  frmWeb:
+    caption: Web Extensions
+    # Verified: sending ^%1 opens this form in about 17 seconds. A freshly
+    # opened frmWeb sits on screen; a stale one restored from a previous
+    # session can be parked outside the MDI client area, so check the
+    # rectangle before any real-mouse action.
+    opened_by: {hotkey: "Ctrl+Alt+1", verified: true}
+    controls:
+      txtEmail: {type: Edit, label: "Username:", note: "labelled Username, takes web_username"}
+      txtPassword: {type: Edit, label: "Password:", note: "takes web_password"}
+      chkRememberMe: {type: CheckBox, caption: "Remember username and password?"}
+      grpUserDetails: {type: GroupBox, caption: "User Details"}
+      grpProfile: {type: GroupBox, caption: "Profile Data Services"}
+      btnDownloadProfileData: {type: Button, caption: "Download Profile Data"}
+      cmdUpload: {type: Button, caption: "&Upload Database"}
+      cmdDownloadDirect: {type: Button, caption: "&Download Readings"}
+      cmdClose: {type: Button, caption: "Close"}
+      grpOptions: {type: GroupBox, caption: "Options - Administrator Only"}
+      optUploadAll: {type: RadioButton, caption: "Upload all data sets"}
+      optUploadFlagged: {type: RadioButton, caption: "Only upload marked data sets"}
+
+  frmProfileCollectorList:
+    caption: Profile Data Download          # UIA caption; designer name differs
+    opened_by: {click: btnDownloadProfileData, on_form: frmWeb, verified: true}
+    note: >-
+      Opens as a new MDI child form when Download Profile Data is clicked. No
+      new top-level window and no dialog appears, so a bot watching only for
+      new windows will miss it entirely: watch for this form inside the shell.
+    controls:
+      gcCollectors: {type: DataGrid, note: "DevExpress GridControl; columns Name, Last Updated, Total Meters, Unmatched Meters"}
+      tsMain:
+        type: ToolBar
+        uia_name: Main Toolbar
+        backend: uia
+        note: >-
+          win32 reports this ToolStrip with ZERO children. WinForms draws
+          ToolStrip items rather than creating a window per button, so the
+          commands below are only reachable through UIA.
+        items:
+          - Import New Data
+          - Import For Period
+          - Show Unmatched Meters
+
+  frmDataQueryReminder:
+    caption: Communication Summary
+    controls:
+      gcOverview: {type: DataGrid, note: "DevExpress SLGrid"}
+      btnRefresh: {type: Button, caption: "Refresh"}
+      chkOnStartup: {type: CheckBox}
+      lblOutstandingValue: {type: Text, note: "overdue communications count"}
+      lblOverdueValue: {type: Text}
+
+  frmDataSets:
+    caption_varies: true
+    caption_note: "carries the current data set name, e.g. '( Old WSR site )'. Never select on it."
+    controls:
+      gcDataSets: {type: DataGrid, note: "DevExpress SLGrid"}
+      tsMain: {type: ToolBar, note: "same designer name as frmMain's and frmSites' toolbars"}
+
+  frmSites:
+    caption: Sites
+    controls:
+      gcSites: {type: DataGrid, note: "DevExpress SLGrid"}
+      tsMain: {type: ToolBar}
+
+# Keyboard shortcuts, harvested from UIA's AccessKey property. Prefer these
+# to clicking: no selector, no traversal, and unaffected by which ribbon tab
+# is active. They are patchy - most ribbon buttons advertise none.
+hotkeys:
+  web_extensions:
+    keys: "Ctrl+Alt+1"
+    send_keys: "^%1"
+    opens: frmWeb
+    source: UIA AccessKey on the ribbon button, matching its tooltip
+
+# How to tell a long-running import is finished.
+progress_monitoring:
+  mechanism: >-
+    An import shows a System.Windows.Forms.ProgressBar INSIDE the toolbar of
+    frmProfileCollectorList. It opens no dialog and no new top-level window:
+    over 300 seconds of watching, nothing appeared on the desktop at all. A
+    monitor that waits for a dialog will wait forever.
+  watch_for: ProgressBar under frmProfileCollectorList/tsMain
+  completion_signal: the ProgressBar is destroyed or becomes invisible
+  how: >-
+    Use controls.wait_while_present(handle). It reads IsWindow and
+    IsWindowVisible only, so it sends the application nothing.
+  warning: >-
+    Do NOT read the bar's position with PBM_GETRANGE to report a percentage.
+    Its lParam is a POINTER, dereferenced inside Energy Manager's process.
+    Passing a plain integer crashed EM with an access violation in
+    Comctl32.dll (0xc0000005, then 0xc000041d) on 2026-08-28. PBM_GETPOS is
+    safe because its lParam is 0, but the control's existence is normally all
+    a bot needs.
+  also_observed: >-
+    Clicking Import New Data populates gcCollectors, whose rows then appear
+    under UIA as DataItem elements named "Name row 0", "Total Meters row 0"
+    and so on.
+
+# The ribbon, reachable only through UIA.
+ribbon:
+  automation_id: rbnMain
+  name: The Ribbon
+  tabs: [Home, Graphs, Reports, Tools, Manage, Add-Ins, Custom Tables]
+  add_ins:
+    pane: Add-Ins          # hyphen
+    toolbar: Add ins       # space - both spellings are real, at different levels
+    buttons:
+      - CRC Reports
+      - Web Extensions
+      - Data Collection
+      - Tenant Billing Reports
+      - Budgeting Export
+      - SECR Site Fields
+      - SECR Data Set Fields
+      - SECR Generate Report
+
+# Honest record of what has not been mapped. Do not write code against
+# anything in this list without discovering it first.
+not_yet_mapped:
+  - >-
+    The import itself. Clicking Download Profile Data is mapped and opens
+    frmProfileCollectorList, but neither Import For Period nor Import New
+    Data has been clicked, so the date-range entry, the progress dialog and
+    the completion dialog remain unknown. Nothing has been written to the
+    database yet.
+  - >-
+    How an import ENDS. The progress mechanism is now known (see
+    progress_monitoring below) but a completed run has not been observed:
+    the one attempt was cut short when the automation itself crashed Energy
+    Manager. Whether a completion dialog appears, and whether any data was
+    written, is unverified.
+  - >-
+    Reading row and cell values out of the DevExpress grids. Partly
+    understood. UIA exposes cells as DataItem elements named
+    "<Column> row <N>", for example "Location row 0", but only while that
+    grid is the rendered one; they disappear when another MDI form covers
+    it. The element name is the cell ADDRESS, not its value, and extracting
+    the value needs more work. Strongly prefer reading this data from the
+    Energy Manager database instead of scraping the grid. GUI automation
+    should drive actions; it is a poor data source.

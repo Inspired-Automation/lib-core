@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-08-28
+
+### Added
+- `automation_core.gui`, an optional layer over `pywinauto` for driving Windows desktop applications. Install with `pip install automation-core[gui]`; it is Windows only, so it is an extra rather than a dependency and `automation_core` itself never imports it.
+  - `gui.windows` finds top-level windows by enumerating handles and reading cached captions, then addresses them by handle. pywinauto's `title=` matching compares against `WM_GETTEXT`, which a busy or wedged UI thread does not answer: Energy Manager's login form answered on a clean launch and then returned empty for minutes after a rejected login, which is the worst failure shape there is.
+  - `gui.controls` wraps the actions whose obvious form fails silently. Clicks are posted rather than sent, because `wrapper.click()` uses `SendMessage` and will not return until the application finishes handling it, so a button that opens a modal dialog hangs the bot forever. Text is set atomically rather than typed. Controls are waited for on `visible enabled ready`, never `exists`, because a hidden win32 control is still in the tree. `ControlOffScreen` catches the case where a control reports itself visible while sitting at coordinates like (-31950, -31803).
+  - `gui.keys.to_send_keys` translates a UIA shortcut display string ("Ctrl+Alt+1") into a `send_keys` spec ("^%1"), refusing anything it cannot translate confidently rather than sending a guessed key combination to a live application.
+  - `gui.app.GuiApp` is the base for an application driver: launch or attach, find windows safely, and get specifications per backend. An application may need more than one backend.
+- `automation_core.gui.apps.energy_manager`, a driver for Energy Manager, with its knowledge base in `energy_manager.yaml` beside it. Covers the launch and login sequence (`Enter Password`, then `Client Group`, then the main shell), opening Web Extensions by its Ctrl+Alt+1 shortcut, and scoping control lookups to the owning MDI child form. The YAML records which backend suits which region of the UI, the two distinct credential pairs, the selectors that must never be used, and an explicit list of what has not been mapped yet.
+
+### Changed
+- `conftest.py` puts `src` on `sys.path`, so the test suite exercises the working tree rather than whichever release happens to be installed in site-packages.
+
+
 ## [1.9.0] - 2026-08-04
 
 ### Added

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "automation-core"
-version = "1.9.0"
+version = "1.10.0"
 description = "Shared utilities for Inspired-Automation projects: logging, configuration, error collection, and notification dispatch."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -22,9 +22,19 @@ Repository = "https://github.com/Inspired-Automation/lib-core"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-mock>=3.12"]
+# Desktop GUI automation. Windows only, so it is an extra rather than a
+# dependency: a bot that never touches a GUI should not carry pywinauto.
+gui = [
+    "pywinauto>=0.6.9",
+    "pywin32>=306",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# The Energy Manager knowledge base ships with the driver that reads it.
+"automation_core.gui.apps" = ["*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
