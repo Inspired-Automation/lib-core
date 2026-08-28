@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-08-28
+
+### Added
+- `automation_core.gui.discover`, the discovery tooling that generates the selector maps in `automation_core.gui.apps`. It ships with the library on purpose: v1.10.0 shipped a knowledge base whose regeneration instructions pointed at a script that was not in the package, and a map nobody can regenerate is a map that quietly rots.
+  - `python -m automation_core.gui.discover.snapshot` maps a whole window under both backends, proves a selector for every worthwhile control by executing it, and diffs two snapshots to show what an action changed.
+  - `python -m automation_core.gui.discover.watcher` snapshots every window a process opens as it opens, which is the only way to catch a dialog that appears and is dismissed, or to map a launch and login sequence.
+  - `discover.probe` holds the shared logic: dual-backend metadata, candidate selectors graded for how stable their anchor is, control-type normalisation across the UIA, CLR and Win32 vocabularies, and tree walking that filters `EnumChildWindows` down to real children.
+  - Only the headless tools ship. The hover inspector needs a human at the keyboard plus `pynput` and `tkinter`, so it stays in the discovery project and adds no dependency here.
+- `automation_core/gui/PLAYBOOK.md` ships as package data, beside the driver it describes, so a consuming project has the reasoning without needing this repository checked out.
+
+### Changed
+- `energy_manager.yaml`'s regeneration instructions now name a command that exists, and explain that `build_marker` is the staleness check: when it stops matching the application's WinForms class-name suffix, every selector needs reproving.
+- Hotkey translation is no longer duplicated. `discover.probe` re-exports `to_send_keys` from `automation_core.gui.keys` rather than carrying a second copy of the table.
+
+### Fixed
+- 43 tests covering the probe logic (stability grading, tree flattening, control-type normalisation, volatile class-name detection) moved into this repository with the code they test. They previously lived in the discovery project, so the logic had shipped in v1.10.0 with no coverage here.
+
+
 ## [1.10.0] - 2026-08-28
 
 ### Added

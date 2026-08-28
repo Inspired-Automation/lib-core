@@ -305,6 +305,10 @@ from automation_core.gui.apps.energy_manager import EnergyManager
 | `gui.keys` | `to_send_keys("Ctrl+Alt+1") -> "^%1"`. Refuses anything it cannot translate confidently. |
 | `gui.app` | `GuiApp`: launch or attach, find windows, get a specification per backend. |
 | `gui.apps.<application>` | One driver per application, paired with a `<application>.yaml` knowledge base shipped as package data. |
+| `gui.discover` | The tooling that *generates* those knowledge bases. `python -m automation_core.gui.discover.snapshot` maps a window and proves every selector; `.watcher` snapshots each window a process opens, catching transient dialogs. Ships with the library so a map can always be regenerated. |
+
+`automation_core/gui/PLAYBOOK.md` ships as package data: the reasoning behind
+every rule, beside the code that enforces them.
 
 ### Design rules it enforces
 

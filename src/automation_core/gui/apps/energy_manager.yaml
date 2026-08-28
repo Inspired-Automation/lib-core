@@ -4,16 +4,25 @@
 # which region of the UI, how to log in, where the forms and controls are,
 # and which commands have keyboard shortcuts.
 #
-# Every selector here resolved to exactly one element when it was harvested,
-# against the live application, using the discovery tools in the
-# automation-energy-manager-poc-gui-automation repository. Nothing in this
-# file is inferred from the Automation Anywhere bots it replaces.
+# Every selector here resolved to exactly one element when it was harvested
+# against the live application. Nothing in this file is inferred from the
+# Automation Anywhere bots it replaces.
 #
-# REGENERATING: do not hand-edit selectors. Re-harvest with
-#   python src/tools/ui_tree_snapshot.py --title "SystemsLink" \
+# REGENERATING: do not hand-edit selectors. Re-harvest with the discovery
+# tools that ship beside this file:
+#
+#   python -m automation_core.gui.discover.snapshot --title "SystemsLink" \
 #          --backend both --verify --label em-main
-# and update `harvested` below. A map that is not refreshed after an
-# application upgrade is worse than none, because it is believed.
+#
+# then update `harvested` and `build_marker` below.
+#
+# `build_marker` is the staleness check. It records the volatile suffix on
+# Energy Manager's WinForms class names. When the running application no
+# longer matches it, EM has been rebuilt and every selector here needs
+# reproving. A map that is not refreshed after an upgrade is worse than no
+# map, because it gets believed.
+#
+# The general rules are in automation_core/gui/PLAYBOOK.md, alongside.
 
 meta:
   application: Energy Manager (SystemsLink)

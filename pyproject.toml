@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "automation-core"
-version = "1.10.0"
+version = "1.11.0"
 description = "Shared utilities for Inspired-Automation projects: logging, configuration, error collection, and notification dispatch."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -35,6 +35,9 @@ where = ["src"]
 [tool.setuptools.package-data]
 # The Energy Manager knowledge base ships with the driver that reads it.
 "automation_core.gui.apps" = ["*.yaml"]
+# The playbook ships beside the driver it describes, so a consuming project
+# has the reasoning without needing this repository.
+"automation_core.gui" = ["*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
