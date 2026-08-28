@@ -453,6 +453,37 @@ while win32gui.IsWindow(progress_handle) and win32gui.IsWindowVisible(progress_h
 
 ---
 
+## 4e. A UIA tree walk is not read-only
+
+It feels like inspection. It is not: UI Automation calls into the target
+application's own automation provider, which for a .NET application means
+running managed code inside that process. If the provider throws, the CLR can
+tear the process down, and your "read-only" survey has killed the application.
+
+Observed on Energy Manager: a UIA tree walk begun about four seconds after
+login crashed it with `0xc000041d` in `clr.dll`, an unhandled exception in a
+callback. No message was sent by the automating code at all. The same walk
+against the same application, once settled and idle, had succeeded many times.
+
+**Rules:**
+
+1. **Let an application finish starting before you enumerate it.** Wait for the
+   windows and child forms you expect to be present, by polling for them. The
+   window existing is not the same as the application being ready.
+2. **Prefer win32 for enumeration.** It reads window structure through the
+   window manager rather than calling into the application, it is far faster,
+   and it cannot be broken by the target's provider throwing.
+3. **Treat a crash during inspection as information, not noise.** If walking
+   the tree can kill the application, then so can a selector lookup, and a bot
+   does those constantly.
+
+This is the second way discovery took down the same application in one day.
+The other was sending a message whose parameter was a pointer (section 4d).
+Both times the automating code raised nothing at all: it simply watched the
+application die.
+
+---
+
 ## 5. Scope selectors to the nearest stable ancestor
 
 A designer name is unique within its own form, not across an application.

@@ -136,6 +136,63 @@ class GuiApp:
         info = self.wait_for_window(self.main_window_caption, timeout=timeout)
         return self.window(info.handle, backend=backend)
 
+
+    def wait_until_settled(
+        self,
+        handle: int,
+        *,
+        timeout: float = 120.0,
+        poll: float = 2.0,
+        stable_polls: int = 3,
+        min_nodes: int = 1,
+    ) -> bool:
+        """Wait until a window has finished building itself.
+
+        A window existing does not mean the application is ready. Energy
+        Manager's main shell appears and then spends about 30 more seconds
+        constructing its MDI child forms, and **enumerating it during that
+        window crashed it**: a UIA walk begun ~4 seconds after login took the
+        process down with an unhandled exception in `clr.dll`. Five UIA walks
+        against the same shell once settled were completely clean.
+
+        So call this before any UIA enumeration of a freshly started
+        application.
+
+        Settling is measured with the **win32** backend on purpose. It reads
+        window structure through the window manager and never calls into the
+        application, so the safety check cannot trigger the thing it is
+        checking for.
+
+        Returns True when the structure stopped changing, False on timeout.
+        """
+        from .discover import probe
+        from pywinauto.win32_element_info import HwndElementInfo
+
+        deadline = time.monotonic() + timeout
+        history: list[int] = []
+
+        while time.monotonic() < deadline:
+            try:
+                tree = probe.walk_tree(HwndElementInfo(handle), max_depth=10)
+                count = len(probe.flatten_tree(tree))
+            except Exception:
+                count = -1
+
+            history.append(count)
+            if (len(history) >= stable_polls
+                    and count >= min_nodes
+                    and len(set(history[-stable_polls:])) == 1):
+                logger.info("Window %s settled at %d nodes", handle, count)
+                return True
+            time.sleep(poll)
+
+        logger.warning(
+            "Window %s did not settle within %.0fs (last counts: %s). "
+            "Enumerating it now risks crashing the application.",
+            handle, timeout, history[-stable_polls:],
+        )
+        return False
+
     # -- actions ----------------------------------------------------------
     def send_hotkey(self, hotkey: str, *, window_handle: int | None = None) -> bool:
         """Invoke a command by its keyboard shortcut.

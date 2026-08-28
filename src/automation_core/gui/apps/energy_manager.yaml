@@ -303,6 +303,50 @@ progress_monitoring:
     under UIA as DataItem elements named "Name row 0", "Total Meters row 0"
     and so on.
 
+# Reading the grids. SOLVED 2026-08-28 and verified against the live app.
+grids:
+  how: >-
+    Cells are exposed by UIA as DataItem elements whose NAME is the cell's
+    address ("Location row 0"), and whose VALUE lives in the
+    LegacyIAccessible Value property, with the ValuePattern as a second
+    route. The grid itself has no usable Table or Grid pattern at all.
+    Use automation_core.gui.grid.read_grid(), which does this.
+  backend: uia
+  note: >-
+    The grid spec must be resolved on the uia backend. Under win32 the cells
+    do not exist: only the scrollbars do.
+  caveats:
+    - >-
+      Cells exist only while the grid's form is the rendered one. They vanish
+      when another MDI child form covers it, so activate the form first.
+    - >-
+      Only realised rows are present. A virtualised grid materialises what it
+      is showing, so a long grid must be scrolled to be read in full.
+      read_grid reports what it found; compare against the application's own
+      row count where one is available.
+  verified:
+    gcDataSets:
+      rows_read: 2
+      columns: [Utility, Data Set Account Number, Location, I, D, P, Submeter,
+                Closed, "Virtual For Data Mode"]
+    gcSites:
+      rows_read: 8
+      columns: [Name, Code]
+    gcOverview:
+      rows_read: 0
+      note: genuinely empty at the time of reading
+
+# Starting up: the shell must settle before it is enumerated.
+startup:
+  settle_seconds_observed: 33
+  why: >-
+    The main shell appears well before it has finished building its MDI child
+    forms. A UIA tree walk begun about 4 seconds after login CRASHED Energy
+    Manager, with an unhandled exception in clr.dll. Five UIA walks against
+    the same shell once settled were completely clean. Detect settling with
+    the win32 backend, which never calls into the application, then enumerate.
+    GuiApp.wait_until_settled() does this and EnergyManager.login() calls it.
+
 # The ribbon, reachable only through UIA.
 ribbon:
   automation_id: rbnMain
@@ -337,11 +381,9 @@ not_yet_mapped:
     Manager. Whether a completion dialog appears, and whether any data was
     written, is unverified.
   - >-
-    Reading row and cell values out of the DevExpress grids. Partly
-    understood. UIA exposes cells as DataItem elements named
-    "<Column> row <N>", for example "Location row 0", but only while that
-    grid is the rendered one; they disappear when another MDI form covers
-    it. The element name is the cell ADDRESS, not its value, and extracting
-    the value needs more work. Strongly prefer reading this data from the
-    Energy Manager database instead of scraping the grid. GUI automation
-    should drive actions; it is a poor data source.
+    Which progress indicator each operation uses. The AA bots poll a
+    top-level Downloading window; an Import New Data run showed only a
+    ProgressBar inside frmProfileCollectorList and no window at all. Both are
+    supported by gui.monitor, but choosing between them per operation is
+    still a guess, and a completion check watching the wrong one either
+    returns instantly or never returns.

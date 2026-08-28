@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-08-28
+
+### Added
+- `automation_core.gui.grid`, for reading a WinForms or DevExpress data grid. This was the blocking problem in the Energy Manager migration: the data exists only in the GUI, there is no database route to it, and the Automation Anywhere bot got it out by exporting to Excel and driving a Save-As dialog.
+  - `read_grid()` returns a list of rows, each a `{column: value}` dict, in row order, with every row carrying every column so a missing cell is an explicit `None` rather than an absent key. `read_grid_column()` and `grid_row_count()` are conveniences over it.
+  - The mechanism, established by measurement: UIA exposes each cell as a `DataItem` whose **name is the cell's address** (`"Location row 0"`) and whose **value is in the LegacyIAccessible `Value` property**, with the ValuePattern as a second route. The grid itself has no usable Table or Grid pattern at all, and pywinauto's own `column_count()` refuses with "not work properly for WinForms DataGrid".
+  - Verified live against Energy Manager: `gcDataSets` read as 2 rows across 9 columns, `gcSites` as 8 rows across 2. This removes the Excel round trip entirely, along with the eight `taskkill /f` calls the AA bot needed to keep it working.
+  - Two caveats are documented rather than hidden: cells exist only while the grid's form is the rendered one, and only *realised* rows are present, so a virtualised grid must be scrolled to be read in full.
+- `GuiApp.wait_until_settled()`, and `EnergyManager.login()` now calls it.
+
+### Fixed
+- Enumerating a freshly started application could crash it. Energy Manager's main shell appears about 33 seconds before it has finished building its MDI child forms, and a UIA tree walk begun ~4 seconds after login took the process down with an unhandled exception in `clr.dll`. Five UIA walks against the same shell once settled were completely clean, so the fix is to wait rather than to avoid UIA. Settling is detected with the **win32** backend deliberately: it reads window structure through the window manager and never calls into the application, so the safety check cannot trigger the failure it is checking for.
+
+
 ## [1.12.0] - 2026-08-28
 
 ### Added

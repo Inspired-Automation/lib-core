@@ -305,6 +305,7 @@ from automation_core.gui.apps.energy_manager import EnergyManager
 | `gui.keys` | `to_send_keys("Ctrl+Alt+1") -> "^%1"`. Refuses anything it cannot translate confidently. |
 | `gui.app` | `GuiApp`: launch or attach, find windows, get a specification per backend. |
 | `gui.apps.<application>` | One driver per application, paired with a `<application>.yaml` knowledge base shipped as package data. |
+| `gui.grid` | Reading a WinForms or DevExpress data grid. `read_grid()` returns ordered rows of `{column: value}`. Cells are UIA `DataItem` elements whose name is the address and whose value is in the LegacyIAccessible `Value` property; the grid's own Table pattern is unusable. |
 | `gui.monitor` | Watching an operation that runs for hours. `wait_for_operation()` polls a liveness test, detects and dismisses error dialogs, screenshots failures, and emits a heartbeat. Returns a `MonitorResult`/`Outcome` rather than raising. |
 | `gui.discover` | The tooling that *generates* those knowledge bases. `python -m automation_core.gui.discover.snapshot` maps a window and proves every selector; `.watcher` snapshots each window a process opens, catching transient dialogs. Ships with the library so a map can always be regenerated. |
 

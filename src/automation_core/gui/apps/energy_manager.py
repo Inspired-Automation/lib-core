@@ -107,6 +107,7 @@ class EnergyManager(GuiApp):
         *,
         client_group: str | None = None,
         timeout: float = 300.0,
+        settle_timeout: float = 120.0,
     ) -> int:
         """Complete the Enter Password and Client Group dialogs.
 
@@ -134,6 +135,15 @@ class EnergyManager(GuiApp):
         logger.info("Waiting for the main shell")
         main = self.wait_for_window(self.main_window_caption, timeout=timeout)
         self._main_handle = main.handle
+
+        # The shell appears well before it is finished building its MDI child
+        # forms, and enumerating it during that window has crashed Energy
+        # Manager. Settling took about 33 seconds when measured. Do not skip
+        # this: the cost is a wait, the alternative is a dead application.
+        if not self.wait_until_settled(main.handle, timeout=settle_timeout):
+            logger.warning(
+                "Main shell never settled; UIA enumeration may be unsafe")
+
         logger.info("Logged in; main shell handle %s", main.handle)
         return main.handle
 

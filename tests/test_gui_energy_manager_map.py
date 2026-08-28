@@ -201,12 +201,40 @@ class TestHonesty:
     def test_unmapped_areas_are_recorded(self, em_map):
         """A map that quietly omits what it does not cover is worse than one
         that says so, because it gets believed.
+
+        This asserts the list is honest and still names the outstanding gap,
+        not that any particular item is on it. Reading the grids used to be
+        listed here and was solved on 2026-08-28, so items leaving this list
+        is the intended direction of travel.
         """
         unmapped = em_map["not_yet_mapped"]
         assert unmapped, "an incomplete map must say what is missing"
+        assert all(isinstance(item, str) and item.strip() for item in unmapped)
         joined = " ".join(unmapped).lower()
-        assert "progress" in joined or "completion" in joined
-        assert "grid" in joined
+        assert "progress" in joined or "completion" in joined, (
+            "the outstanding gap is which progress indicator each operation "
+            "uses; if that is solved, update this test and the map together"
+        )
+
+    def test_solved_areas_are_documented_rather_than_forgotten(self, em_map):
+        """Reading the grids was the blocking problem. Now that it is solved,
+        the map must say HOW, or the knowledge is lost the moment someone
+        needs it again.
+        """
+        grids = em_map["grids"]
+        assert grids["backend"] == "uia"
+        assert "DataItem" in grids["how"]
+        assert "LegacyIAccessible" in grids["how"] or "Legacy" in grids["how"]
+        assert grids["caveats"], "the constraints matter as much as the method"
+        assert grids["verified"], "record what it was actually tested against"
+
+    def test_startup_settling_is_documented(self, em_map):
+        """Enumerating the shell too early crashed the application. The map
+        must carry that, because the failure is silent from the bot's side.
+        """
+        startup = em_map["startup"]
+        assert startup["settle_seconds_observed"] > 0
+        assert "crash" in startup["why"].lower()
 
     def test_never_use_records_the_traps(self, em_map):
         fields = {entry["field"] for entry in em_map["never_use"]}
