@@ -465,6 +465,7 @@ already knows which job it is reporting on from its own job record.
 The library handles all logging setup. Projects just import `logging` and use it normally.
 
 - File handler writes to `<production_root>\<ProcessName>\logs\<YYYY>\<MonthName>\<DD>\<ProcessName>_<YYYYMMDD>_<HHMMSS>_<suffix>.log`, where `<suffix>` is `job<job_id>` when the Control Room supplied a job id (see §3.4) and `p<pid>` otherwise. The suffix keeps concurrent runs of the same bot in separate files: with a job id the name is globally unique; without one, the process id separates two same-second hand runs on a host.
+- The file handler (`ReopeningFileHandler`) survives the share dropping mid-run. A failed write closes the dead handle, reopens the file in append mode and writes the record again. While the file stays unreachable, records are counted rather than written (the console still has them), a reopen is tried at most every 30 seconds so an unreachable share cannot stall every log call, and only the first failure prints a `--- Logging error ---` traceback. When the file is back, a WARNING line records how many lines it is missing. A plain `FileHandler` instead failed every write for the rest of the run.
 - Console handler writes to stdout.
 - Format: `%(asctime)s | %(levelname)s | %(name)s | %(message)s`.
 - Encoding: UTF-8.

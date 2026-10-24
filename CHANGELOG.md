@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-10-24
+
+### Fixed
+- The log file no longer stops being written for the rest of a run when its network share drops. `configure()` used a plain `logging.FileHandler`, which opens the file once; a stale handle then failed every write with `FileNotFoundError` or `OSError: [Errno 22] Invalid argument` and printed a `--- Logging error ---` traceback per record. Seen in `automation-meter-matching-capture` on 2026-10-23: about 23:00, five hours into an eleven-hour capture, the share dropped and every later line was missing from the log file, while the run itself went on to succeed. The new `ReopeningFileHandler` reopens the file in append mode and writes the record again. If the share stays down, it counts the lost lines, retries at most every 30 seconds, prints one traceback per outage, and writes a WARNING with the count of missing lines when the file is back. The console output is unchanged.
+
 ## [1.13.0] - 2026-08-28
 
 ### Added
