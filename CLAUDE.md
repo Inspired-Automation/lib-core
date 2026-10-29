@@ -198,4 +198,4 @@ Known limitation: a job file that is present but unreadable also yields `ctx.job
 - 2026-06-01: Initial scaffold from spec.
 
 ## Outstanding TODOs
-- After v1.14.0: move the four bots with their own Graph senders onto `automation_core.email`, one at a time (`automation-companies-house-main-reporting`, `automation-daily-quality-report`, `automation-sugarcrm-data-collector-sync`, `automation-query-monitor`).
+- Move the remaining bots with their own Graph senders onto `automation_core.email`. `automation-query-monitor` and `automation-sugarcrm-data-collector-sync` were moved on 2026-10-29 (committed in each, not yet pushed or deployed). `automation-daily-quality-report` is Jane Hong's bot and waits on her agreement, since its report emails go to the business. `automation-companies-house-main-reporting` is left out: its local clone was moved to `_deleted` on 2026-10-29.
