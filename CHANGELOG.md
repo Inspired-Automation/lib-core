@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-## [1.14.0] - 2026-10-27
+## [1.14.0] - 2026-10-29
 
 ### Added
 - `automation_core.email`, for building and sending branded HTML email to the team's email design spec. Bots had each written their own Graph `sendMail` code and their own HTML: `automation-companies-house-main-reporting`, `automation-daily-quality-report`, `automation-sugarcrm-data-collector-sync` and `automation-query-monitor` all carry a copy, with different layouts, and the library's own sender could send neither HTML nor attachments.
