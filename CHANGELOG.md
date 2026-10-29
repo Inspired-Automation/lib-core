@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-27
+
+### Added
+- `automation_core.email`, for building and sending branded HTML email to the team's email design spec. Bots had each written their own Graph `sendMail` code and their own HTML: `automation-companies-house-main-reporting`, `automation-daily-quality-report`, `automation-sugarcrm-data-collector-sync` and `automation-query-monitor` all carry a copy, with different layouts, and the library's own sender could send neither HTML nor attachments.
+  - The spec (`email-design-spec.md`) and base template (`email-base-template.html`) ship in the package, so any project can read the rules without this repository, and the renderer reads its shell and footer from the template file rather than a copy in code.
+  - Every email opens with an Inspired Automation header band: the wordmark on the left and the email type on the right, as live text on midnight rather than an image, so Outlook has nothing to block and dark mode leaves it alone.
+  - `Email` holds the spec's components (`Banner`, `Kpi`, `Table`, `Group`, `Column`, `Section`, `Button`, `AttachedFile`, `FolderLink`, `WebLink`) and `render()` lays them out in the order the spec fixes, escaping every value. Rules that depend only on how an email is built raise `ValueError` (an Alert needs an Error or Warning banner and a "What to do" list; two to four KPIs). Rules that depend on the data never fail a run: a long subject logs a warning, and a table over 15 rows is cut with "Showing 15 of N rows."
+  - Number columns are right-aligned with thousands separators, detected from the values. Identifier columns are declared `Column("MPAN")`, so an MPAN is never shown as `1,234,567,890,123`.
+  - `email.formatting` gives the spec's number, money, percent, size, date and time formats. UK local time is computed from the fixed UK daylight saving rule, because `zoneinfo` needs the `tzdata` package on Windows and a server without it would fail to send its alert.
+  - `send_email()` sends through Graph with any number of `;`- or `,`-separated recipients, cc, bcc and attachments. Above 2.5 MB of attachments it switches to a draft plus upload session, which Graph requires above 3 MB, and deletes the draft if sending fails. Graph's error text is kept in the raised `HTTPError`.
+
+### Changed
+- **The error notification email is now a branded HTML Alert**, sent with importance high. It has a status banner, a summary naming the host and time, a "What to do" list, the traceback (last 60 lines), an issues table, run details, and a link to the log file.
+- **Its subject changed**, to the spec's pattern: `Failed: <Process> | 27/10/2026 14:30 GMT` (was `[CRITICAL] <Process> failed`) and `Action needed: <Process>: N issues during run | ...` (was `[<Process>] N issue(s) during run`). Outlook rules that match the old subjects need updating.
+- **The email no longer carries the JSON meta block.** The Power Automate flow it was added for in 1.3.0 is retired, and the Control Room reads `cr_errors.json`. `META_BEGIN`, `META_END` and `META_SCHEMA_VERSION` remain, and Freshservice tickets are unchanged: same subjects, same `<pre>` body, same meta block.
+- A notification that fails while being *built*, not only while being sent, is now logged without crashing the run.
+- `notification_recipient` may hold several addresses separated by `;` or `,`.
+
 ## [1.13.1] - 2026-10-24
 
 ### Fixed

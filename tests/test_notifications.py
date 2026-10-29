@@ -65,9 +65,9 @@ class TestEmailDispatch:
             dispatch_notification(_ctx("email"), _errors("err1"), is_critical=False)
         mock_send.assert_called_once()
         _, args, _ = mock_send.mock_calls[0]
-        # send(config, recipient, subject, body)
+        # send(config, recipient, subject, html)
         assert args[1] == "team@example.com"
-        assert "[TestProcess]" in args[2]
+        assert args[2].startswith("Action needed: TestProcess: 1 issue during run | ")
 
     def test_critical_subject_prefix(self):
         with (
@@ -76,7 +76,40 @@ class TestEmailDispatch:
         ):
             dispatch_notification(_ctx("email"), _errors(), is_critical=True)
         subject = mock_send.call_args[0][2]
-        assert subject.startswith("[CRITICAL]")
+        assert subject.startswith("Failed: TestProcess | ")
+
+    def test_alert_is_html_and_high_importance(self):
+        with (
+            patch("automation_core.notifications._get_config", return_value=CONFIG),
+            patch("automation_core.notifications.email_graph.send") as mock_send,
+        ):
+            dispatch_notification(_ctx("email"), _errors("err1"), is_critical=False)
+        html = mock_send.call_args[0][3]
+        assert html.startswith("<!DOCTYPE html>")
+        assert "Automated alert" in html
+        assert mock_send.call_args.kwargs["importance"] == "high"
+
+    def test_alert_email_has_no_meta_block(self):
+        from automation_core.notifications import META_BEGIN
+
+        with (
+            patch("automation_core.notifications._get_config", return_value=CONFIG),
+            patch("automation_core.notifications.email_graph.send") as mock_send,
+        ):
+            dispatch_notification(_ctx("email"), _errors("err1"), is_critical=False)
+        assert META_BEGIN not in mock_send.call_args[0][3]
+
+    def test_build_failure_does_not_raise(self):
+        with (
+            patch("automation_core.notifications._get_config", return_value=CONFIG),
+            patch(
+                "automation_core.notifications.alert_email.build_alert_email",
+                side_effect=RuntimeError("render bug"),
+            ),
+            patch("automation_core.notifications.email_graph.send") as mock_send,
+        ):
+            dispatch_notification(_ctx("email"), _errors("err"), is_critical=False)
+        mock_send.assert_not_called()
 
     def test_dispatch_failure_does_not_raise(self):
         with (
@@ -105,6 +138,8 @@ class TestEmailDispatch:
 
 
 class TestMetaBlock:
+    """The meta block now lives only in Freshservice ticket bodies."""
+
     def _body(
         self,
         is_critical: bool,
@@ -113,13 +148,13 @@ class TestMetaBlock:
     ) -> str:
         with (
             patch("automation_core.notifications._get_config", return_value=CONFIG),
-            patch("automation_core.notifications.email_graph.send") as mock_send,
+            patch("automation_core.notifications.freshservice.create_ticket") as mock_ticket,
         ):
             dispatch_notification(
-                _ctx("email", job_id=job_id), errors, is_critical=is_critical
+                _ctx("freshservice", job_id=job_id), errors, is_critical=is_critical
             )
-        # send(config, recipient, subject, body)
-        return mock_send.call_args[0][3]
+        # create_ticket(config, subject, body_html, is_critical=...)
+        return mock_ticket.call_args[0][2]
 
     def _parse_meta(self, body: str) -> dict:
         import json

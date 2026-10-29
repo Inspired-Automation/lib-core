@@ -35,6 +35,10 @@ if __name__ == "__main__":
     main()
 ```
 
+## Sending email
+
+Branded report, alert, notification and request emails are built with `automation_core.email` (1.14.0 or later), which follows the team's email design spec. The spec ships in the package at `automation_core/email/email-design-spec.md`, and the module docstring has a complete example. See `lib-core-spec.md` §3.6.
+
 ## Configuration
 
 Two config files are read at startup:

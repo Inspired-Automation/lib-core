@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "automation-core"
-version = "1.13.1"
+version = "1.14.0"
 description = "Shared utilities for Inspired-Automation projects: logging, configuration, error collection, and notification dispatch."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -38,6 +38,9 @@ where = ["src"]
 # The playbook ships beside the driver it describes, so a consuming project
 # has the reasoning without needing this repository.
 "automation_core.gui" = ["*.md"]
+# The email shell is read at render time, and the spec travels with the code
+# that implements it so any project can read the rules without this repo.
+"automation_core.email" = ["*.html", "*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

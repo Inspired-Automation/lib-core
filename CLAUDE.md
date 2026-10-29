@@ -20,7 +20,7 @@ The goal is to remove ~500 lines of boilerplate from every project. All projects
 - None. This library does not touch databases. Database access is the responsibility of the projects that use it.
 
 ## External Integrations
-- **Microsoft Graph** for sending error notification emails
+- **Microsoft Graph** for sending error notification emails, and branded email for bots through `automation_core.email` (`sendMail`; draft, attachment and upload-session endpoints for large attachments). Uses the `graph` block of `team.yaml`.
 - **Freshservice** for raising error notification tickets
 
 ## Configuration
@@ -83,6 +83,18 @@ into at all), and its application login and Web Extensions login are
 The discovery tooling that produces these maps lives in the
 `automation-energy-manager-poc-gui-automation` repository, along with a
 general pywinauto playbook.
+
+## Branded email (`automation_core.email`)
+
+Added in v1.14.0. Builds and sends HTML email to the team's email design spec. The spec (`email-design-spec.md`) and the base template (`email-base-template.html`) live in `src/automation_core/email/` and ship as package data, so the rules travel with the code that implements them, as `gui/PLAYBOOK.md` does. The team instructions (§8 in `config-cursor-rules`) point at this module rather than carrying the spec.
+
+- `Email.render()` reads the shell and footer from the template file at runtime, so editing the template changes every email. It strips the template's HTML comments (one names the `{{...}}` placeholders, which would otherwise be filled in) but keeps Outlook's `<!--[if mso]>` conditional.
+- Every email opens with an Inspired Automation header band in the template (wordmark left, `{{EMAIL_TYPE}}` right), live text, never an image. Inspired Automation is internal branding, so the Group brand guidelines' logo rules (one logo, no suffix) do not apply to it. The band is on every email with no switch: before any bot emails outside the company, make it optional.
+- Rules that depend only on how an email is built raise `ValueError`. Rules that depend on the data (subject length, table rows) warn or truncate, and never fail a run.
+- An int column is detected as numeric and gets thousands separators, so identifier columns (MPANs, job ids) must be declared `Column("MPAN")`.
+- UK time comes from the fixed daylight saving rule, not `zoneinfo`, which needs `tzdata` on Windows.
+- lib-core's own error alerts are built with it, in `notifications/alert_email.py`. Freshservice tickets are deliberately untouched: plain text in `<pre>`, old subjects, meta block still present.
+- No Power Automate flow reads the email meta block any more (confirmed 2026-10-27), which is why the alert email dropped it.
 
 ## Migrations
 | File | DEV applied | PROD applied |
@@ -158,6 +170,7 @@ Known limitation: a job file that is present but unreadable also yields `ctx.job
 - A release is a human action. Never tag, build a wheel, or publish a GitHub release on your own initiative. When the developer explicitly asks for a release, follow `RELEASING.md` step by step and confirm before publishing anything public.
 
 ## Change Log
+- 2026-10-27: Added `automation_core.email` for branded HTML email to the team's email design spec, which ships in the package with its base template. Bots had each written their own Graph sender and HTML (four copies found), and lib-core's own sender could send neither HTML nor attachments. Every email opens with an Inspired Automation header band (wordmark and email type in live text, no image). Components render in the spec's fixed order with every value escaped; `send_email()` handles multiple recipients, cc/bcc, and attachments up to 150 MB via a draft plus upload session above 2.5 MB. The error notification email is now a branded Alert with importance high, new subjects (`Failed: ...`, `Action needed: ...`) and no meta block, since the Power Automate flow that read it is retired. Freshservice tickets unchanged. Verified 2026-10-29 by a real send through Graph from the working tree: an alert through `dispatch_notification`, and a report with a 3.5 MB and a 35 KB attachment on the draft and upload-session route, both checked in Outlook desktop, dark mode and on the web or phone. Documented in lib-core-spec.md §3.6 and §4.4; prepared as v1.14.0, not yet released.
 - 2026-10-24: The log file handler now reopens its file after the share drops (`ReopeningFileHandler` in `logging_setup.py`). Before this, a plain `FileHandler` lost every line after a stale handle, which happened about five hours into an overnight meter matching capture. Lost lines are counted and noted in the file, and only one traceback is printed per outage. Documented in lib-core-spec.md §5; released v1.13.1.
 - 2026-08-28: Added `automation_core.gui.grid` for reading WinForms and DevExpress grids, which was the blocking problem in the Energy Manager migration: that data exists only in the GUI and the AA bot got it out via an Excel export and a Save-As dialog. UIA exposes each cell as a `DataItem` whose name is the cell's *address* and whose value sits in the LegacyIAccessible `Value` property; the grid's own Table pattern is unusable. `read_grid()` turns that into ordered rows of `{column: value}`. Verified live: gcDataSets 2x9, gcSites 8x2, which removes the Excel round trip and its eight taskkill calls. Also fixed a crash: enumerating a freshly started application can kill it, because Energy Manager's shell appears ~33s before its MDI child forms are built and a UIA walk during that window took the process down in clr.dll. `GuiApp.wait_until_settled()` waits it out, detecting settling through win32 so the check cannot cause what it checks for. Documented in lib-core-spec.md §3.5; released v1.13.0.
 - 2026-08-28: Added `automation_core.gui.monitor` for operations that run for hours. A long GUI operation is not a control with a bigger timeout: it can fail halfway with a dialog, it can hang, and a multi-hour run with no output looks identical to a dead one. `wait_for_operation()` polls a caller-supplied liveness test, checks for the application's error dialogs on every poll and dismisses them, screenshots any failure, and emits a heartbeat. The shape came from decoding the Automation Anywhere bots rather than being invented, which is why it checks completion before sleeping, takes its timeout per operation from config, and captures evidence before acting. `window_gone()` and `control_gone()` cover an operation that opens its own window and one that only shows a progress bar inside an existing form; both read window state and send the application nothing, because reading a progress bar's position is what crashed Energy Manager during discovery. Also fixed `poll_count()` to reject a non-positive interval rather than divide by it, and made `sleep` injectable so tests run realistic intervals instantly. Documented in lib-core-spec.md §3.5; released v1.12.0.
@@ -184,4 +197,6 @@ Known limitation: a job file that is present but unreadable also yields `ctx.job
 - 2026-06-01: Initial scaffold from spec.
 
 ## Outstanding TODOs
+- Release v1.14.0 (`RELEASING.md`), then push the §8 and §10 email changes drafted in `config-cursor-rules` and copy the team instructions into both copies here. Not before: §8 tells bots to use `automation_core.email`, which no released wheel contains until then.
+- After v1.14.0: move the four bots with their own Graph senders onto `automation_core.email`, one at a time (`automation-companies-house-main-reporting`, `automation-daily-quality-report`, `automation-sugarcrm-data-collector-sync`, `automation-query-monitor`).
 - Once v1.9.0 is published, switch the team instructions (Section 6 in `config-cursor-rules`) to the top-level `from automation_core import load_config`, noting it needs 1.9.0 or later. Left until then on purpose: new projects pin the latest **release**, so telling bots to use an import that no released wheel exports would break them.

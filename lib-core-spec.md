@@ -349,6 +349,79 @@ believed.
 
 `gui.apps.energy_manager` is the reference implementation.
 
+## 3.6 Branded email (`automation_core.email`)
+
+Added v1.14.0. Builds and sends HTML email to the team's email design spec,
+which ships in the package beside the code
+(`automation_core/email/email-design-spec.md`), together with the base
+template the renderer reads (`email-base-template.html`). Unlike `gui`, it is
+part of the core install: it needs only `requests` and `msal`, which the
+library already depends on. It is not re-exported from the top level, so the
+import is `from automation_core.email import ...`.
+
+```python
+from automation_core.email import Email, EmailType, Kpi, Section, Table, send_email, subject_line
+from automation_core.email.formatting import format_datetime, percent_of
+```
+
+### Modules
+
+- `email.components`: the spec's components as frozen dataclasses (`Banner`,
+  `Kpi`, `Table`, `Column`, `Group`, `Section`, `Button`, `AttachedFile`,
+  `FolderLink`, `WebLink`), the `Email` that holds them, and
+  `subject_line()`. `Email.render()` returns the complete HTML document.
+- `email.formatting`: the spec's value rules as functions returning plain
+  text: `format_number`, `format_percent`, `percent_of`, `format_money`,
+  `format_size`, `format_date`, `format_time`, `format_datetime`, `file_url`.
+- `email.graph`: `send_email()` and `split_recipients()`.
+
+### Design rules it enforces
+
+- **The renderer escapes every value.** Callers pass plain text, never HTML.
+- **Order is fixed by the code**: header, status banner, summary, KPIs,
+  sections, button, files, about, footer. A caller cannot reorder it.
+- **Rules that depend only on how an email is built raise `ValueError`** on
+  construction: an Alert without an Error or Warning banner or a "What to do"
+  list, a Notification without a Success or Info banner, a Request without a
+  Warning banner and a button, KPIs other than two to four, more than six list
+  items, no summary. These fail on the first run, in development.
+- **Rules that depend on the data never fail a run.** A subject over 80
+  characters, a preheader outside 50 to 110, or HTML over 100 KB logs a
+  warning. A table over 15 rows is cut to 15 with "Showing 15 of N rows."
+  and the table's `more_note`; pass `total_rows` when the caller has already
+  cut the data.
+- **Numeric columns** are right-aligned, and ints in them get thousands
+  separators. A column given as a plain string is numeric when every value in
+  it is a number or formatted number text. Identifier columns (MPANs, job ids)
+  must be declared `Column("MPAN")`, or they would be detected as numeric and
+  shown with commas.
+- **UK local time** comes from the fixed UK daylight saving rule, not
+  `zoneinfo`, because Windows has no time zone database without the `tzdata`
+  package.
+- **Every email opens with the Inspired Automation header band** from the
+  template: the wordmark and the email type (`EmailType.label`, filling
+  `{{EMAIL_TYPE}}`) in live text on midnight, so there is no image to block
+  and dark mode leaves it alone. The type is not repeated above the title.
+  Inspired Automation is internal branding, so the Group logo rules do not
+  apply to it, but the band goes on every email: a process that sends outside
+  the company would need it made optional first.
+- **The template's HTML comments are stripped** when it is loaded, except
+  Outlook's `<!--[if mso]>` conditional. One of them names the `{{...}}`
+  placeholders and would otherwise be filled in too.
+
+### Sending
+
+`send_email(subject, html, to, *, cc, bcc, attachments, importance, config)`.
+`to`, `cc` and `bcc` take a list or a `;`/`,` separated string. `config`
+defaults to `load_config()`. A message whose attachments total 2.5 MB or less
+goes in one `sendMail` call; a larger one is created as a draft, attachments
+of 3 MB or more are uploaded through an upload session in 3.1 MiB chunks
+(a multiple of the 320 KiB Graph requires), and the draft is then sent. If any
+step of that fails, the draft is deleted and the error re-raised. An
+attachment over 150 MB raises `ValueError`; one over 10 MB logs a warning,
+because the spec says to link to it instead. A rejected request raises
+`requests.HTTPError` carrying Graph's explanation.
+
 ## 4. Notification Behaviour
 
 ### 4.1 When notifications are sent
@@ -394,12 +467,16 @@ Notes:
 
 ### 4.4 Email notification format (Microsoft Graph)
 
+Since v1.14.0 the email is an Alert built with `automation_core.email` (see
+3.6) by `notifications.alert_email`, and sent with importance high.
+
 - From: team Graph sender address
-- To: `notifications.recipient` (project override or team default)
-- Subject pattern:
-  - Critical: `[CRITICAL] <ProcessName> failed`
-  - Summary: `[<ProcessName>] N issue(s) during run`
-- Body: process name, Control Room job id (or "(hand run)"), machine name, run timestamp, log file path, error list with details, and a machine-readable meta block (see 3.4) whose `job_id` field carries the same id (`null` on a hand run).
+- To: `notifications.recipient` (project override or team default; several addresses may be separated by `;` or `,`)
+- Subject pattern (times in UK local time with zone):
+  - Critical: `Failed: <ProcessName> | DD/MM/YYYY HH:MM GMT`
+  - Summary: `Action needed: <ProcessName>: N issues during run | DD/MM/YYYY HH:MM GMT`
+- Body: an Error banner (critical) or Warning banner (summary), a summary naming the host and time, a "What to do" list, the traceback (critical; the last 60 lines), the issues table (message and details, up to 15 rows, with the rest in the log file), a run details table (process, Control Room job or "Hand run", host, user, issue count), and a link to the log file with its path.
+- No meta block. Before v1.14.0 the plain-text body ended with the JSON block from 3.4 for a Power Automate flow; that flow is retired, and the Control Room reads `cr_errors.json` (4.6). Freshservice tickets still carry the block.
 
 ### 4.5 Freshservice notification format
 
@@ -407,7 +484,10 @@ Notes:
   derived from `freshservice.domain` by `normalize_base_url()` (strips whitespace,
   a leading `http(s)://` scheme, trailing slashes, and a trailing `/api/v2`), so any
   reasonable domain format resolves to `https://<host>/api/v2`.
-- Subject and body match the email format.
+- Subject and body are the plain-text format the email used before v1.14.0:
+  subject `[CRITICAL] <ProcessName> failed` or `[<ProcessName>] N issue(s) during run`,
+  body inside `<pre>`, ending with the meta block (3.4). The email design spec
+  covers email only, and Freshservice rules may match on these subjects.
 - Priority: High (`2`) for critical, Low (`4`) for summary.
 - Fields populated from the required `freshservice.defaults` block:
   - `workspace_id`, `group_id`, `type` — set directly from defaults.
@@ -490,9 +570,16 @@ lib-core/
 │   ├── context.py           # Context dataclass
 │   ├── params.py            # Run-param declarations (params.json) loader/validator
 │   ├── errors.py            # ErrorCollector and collect_errors
+│   ├── email/               # Branded HTML email (see 3.6)
+│   │   ├── components.py    # Spec components and the renderer
+│   │   ├── formatting.py    # Number, date, time and path formatting
+│   │   ├── graph.py         # send_email via Microsoft Graph
+│   │   ├── email-base-template.html
+│   │   └── email-design-spec.md
 │   ├── notifications/
 │   │   ├── __init__.py      # Dispatch by method
-│   │   ├── email_graph.py   # Microsoft Graph email sender
+│   │   ├── alert_email.py   # The error alert, built with automation_core.email
+│   │   ├── email_graph.py   # Thin wrapper over email.graph.send_email
 │   │   └── freshservice.py  # Freshservice ticket creator
 │   └── _internal_log.py     # Logger for the library's own errors
 ├── tests/

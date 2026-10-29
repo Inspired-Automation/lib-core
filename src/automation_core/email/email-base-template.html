@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en-GB" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>{{SUBJECT}}</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<style>
+  body, table, td, th, p, a, span, li, h1, h2, h3 { font-family: Aptos, Arial, sans-serif !important; }
+</style>
+<![endif]-->
+<style>
+  /* Resets only. All design styles are inline. Do not add layout CSS here. */
+  body { margin: 0; padding: 0; background-color: #ffffff; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+  a { color: #29215a; }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#ffffff;">
+
+<!-- ============================================================
+     INSPIRED AUTOMATION EMAIL SHELL (spec: email-design-spec.md)
+     Agents: only edit between CONTENT START and CONTENT END,
+     and fill {{SUBJECT}}, {{PREHEADER}}, {{EMAIL_TYPE}}, {{PROCESS_NAME}}.
+     The signature is added by the mail system. Never add one.
+     ============================================================ -->
+
+<!-- Preheader: hidden preview text, 50 to 110 characters -->
+<div style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all;">{{PREHEADER}}&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+
+<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" align="left" bgcolor="#ffffff" style="width:640px; max-width:640px; background-color:#ffffff; font-family:Montserrat, Aptos, 'Segoe UI', Arial, sans-serif;">
+
+  <!-- Header band: the Inspired Automation wordmark in live text (not an
+       image, so nothing to block and nothing to attach) and the email type.
+       The band carries its own midnight background, so dark mode leaves it as it is. -->
+  <tr>
+    <td bgcolor="#18073a" style="padding:14px 32px; background-color:#18073a;">
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="font-size:15px; line-height:20px; color:#ffffff;"><span style="font-weight:600;">Inspired</span> Automation</td>
+          <td align="right" style="font-size:12px; line-height:20px; font-weight:600; color:#dededd; text-align:right;">{{EMAIL_TYPE}}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  <tr>
+    <td style="padding:32px 32px 0 32px;">
+
+<!-- ======================= CONTENT START ======================= -->
+
+      <!-- 6.1 HEADER -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="padding:0 0 8px 0; font-size:24px; line-height:32px; font-weight:300; color:#18073a;">{{TITLE}}</td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 24px 0; font-size:13px; line-height:20px; color:#4d4777;">{{META e.g. Generated Tue 27/10/2026 14:30 GMT &middot; All-time read rows}}</td>
+        </tr>
+      </table>
+
+      <!-- 6.2 STATUS BANNER (optional for Report, required otherwise; max one)
+           Success: text #29372a bg #e4efdf | Warning: text #7a4420 bg #f8eddb
+           Error:   text #590006 bg #f2d7d0 | Info:    text #013c4e bg #deebf3 -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td bgcolor="#f8eddb" style="padding:12px 16px; background-color:#f8eddb; font-size:14px; line-height:22px; color:#7a4420;">
+            <strong style="font-weight:600;">{{STATUS_WORD e.g. Needs attention}}</strong>&nbsp;&nbsp;{{STATUS_SENTENCE}}
+          </td>
+        </tr>
+        <tr><td height="24" style="height:24px; line-height:24px; font-size:0;">&nbsp;</td></tr>
+      </table>
+
+      <!-- 6.3 SUMMARY -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="padding:0 0 24px 0; font-size:14px; line-height:22px; color:#000000;">{{SUMMARY: one or two sentences stating the outcome and any action}}</td>
+        </tr>
+      </table>
+
+      <!-- 6.4 KPI ROW (2 x 2 shown; for 2 or 3 KPIs use one row, tile widths 284 / 186) -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td width="284" valign="top" bgcolor="#f6f6f5" style="width:284px; padding:16px; background-color:#f6f6f5;">
+            <div style="font-size:28px; line-height:34px; font-weight:600; color:#18073a;">{{KPI_1_VALUE}}</div>
+            <div style="font-size:13px; line-height:18px; color:#4d4777;">{{KPI_1_LABEL}}</div>
+            <div style="font-size:12px; line-height:18px; color:#4d4777;">{{KPI_1_CONTEXT optional}}</div>
+          </td>
+          <td width="8" style="width:8px; font-size:0;">&nbsp;</td>
+          <td width="284" valign="top" bgcolor="#f6f6f5" style="width:284px; padding:16px; background-color:#f6f6f5;">
+            <div style="font-size:28px; line-height:34px; font-weight:600; color:#18073a;">{{KPI_2_VALUE}}</div>
+            <div style="font-size:13px; line-height:18px; color:#4d4777;">{{KPI_2_LABEL}}</div>
+            <div style="font-size:12px; line-height:18px; color:#4d4777;">{{KPI_2_CONTEXT optional}}</div>
+          </td>
+        </tr>
+        <tr><td colspan="3" height="8" style="height:8px; line-height:8px; font-size:0;">&nbsp;</td></tr>
+        <tr>
+          <td width="284" valign="top" bgcolor="#f6f6f5" style="width:284px; padding:16px; background-color:#f6f6f5;">
+            <div style="font-size:28px; line-height:34px; font-weight:600; color:#18073a;">{{KPI_3_VALUE}}</div>
+            <div style="font-size:13px; line-height:18px; color:#4d4777;">{{KPI_3_LABEL}}</div>
+            <div style="font-size:12px; line-height:18px; color:#4d4777;">{{KPI_3_CONTEXT optional}}</div>
+          </td>
+          <td width="8" style="width:8px; font-size:0;">&nbsp;</td>
+          <td width="284" valign="top" bgcolor="#f6f6f5" style="width:284px; padding:16px; background-color:#f6f6f5;">
+            <div style="font-size:28px; line-height:34px; font-weight:600; color:#18073a;">{{KPI_4_VALUE}}</div>
+            <div style="font-size:13px; line-height:18px; color:#4d4777;">{{KPI_4_LABEL}}</div>
+            <div style="font-size:12px; line-height:18px; color:#4d4777;">{{KPI_4_CONTEXT optional}}</div>
+          </td>
+        </tr>
+        <tr><td colspan="3" height="32" style="height:32px; line-height:32px; font-size:0;">&nbsp;</td></tr>
+      </table>
+
+      <!-- SECTION HEADING -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="padding:0 0 12px 0; font-size:16px; line-height:24px; font-weight:600; color:#18073a;">{{SECTION_HEADING}}</td>
+        </tr>
+      </table>
+
+      <!-- 6.5 DATA TABLE (max 15 body rows; numbers right-aligned) -->
+      <table width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px; font-size:14px; line-height:20px; color:#000000;">
+        <thead>
+          <tr>
+            <th scope="col" align="left" style="padding:0 8px 8px 0; border-bottom:2px solid #18073a; font-size:12px; line-height:16px; font-weight:600; color:#4d4777; text-align:left;">{{COL_1}}</th>
+            <th scope="col" align="right" width="120" style="width:120px; padding:0 0 8px 8px; border-bottom:2px solid #18073a; font-size:12px; line-height:16px; font-weight:600; color:#4d4777; text-align:right;">{{COL_2}}</th>
+            <th scope="col" align="right" width="100" style="width:100px; padding:0 0 8px 8px; border-bottom:2px solid #18073a; font-size:12px; line-height:16px; font-weight:600; color:#4d4777; text-align:right;">{{COL_3}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Group row (optional) -->
+          <tr>
+            <td colspan="3" style="padding:12px 0 4px 0; border-bottom:1px solid #dededd; font-size:13px; line-height:18px; font-weight:600; color:#4d4777;">{{GROUP_NAME}}</td>
+          </tr>
+          <!-- Body row: repeat -->
+          <tr>
+            <td style="padding:10px 8px 10px 0; border-bottom:1px solid #dededd;">{{ROW_LABEL}}</td>
+            <td align="right" style="padding:10px 0 10px 8px; border-bottom:1px solid #dededd; text-align:right;">{{ROW_VALUE}}</td>
+            <td align="right" style="padding:10px 0 10px 8px; border-bottom:1px solid #dededd; text-align:right;">{{ROW_PERCENT}}</td>
+          </tr>
+          <!-- Total row (optional) -->
+          <tr>
+            <td style="padding:10px 8px 10px 0; border-top:2px solid #18073a; font-weight:600;">Total</td>
+            <td align="right" style="padding:10px 0 10px 8px; border-top:2px solid #18073a; font-weight:600; text-align:right;">{{TOTAL_VALUE}}</td>
+            <td align="right" style="padding:10px 0 10px 8px; border-top:2px solid #18073a; font-weight:600; text-align:right;">{{TOTAL_PERCENT}}</td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- Truncation note (only if rows were cut) -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="padding:8px 0 32px 0; font-size:12px; line-height:18px; color:#4d4777;">{{e.g. Showing 15 of 2,341 rows. The full list is in the attached report.}}</td>
+        </tr>
+      </table>
+
+      <!-- 6.6 LIST (Alerts: "What to do") -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="padding:0 0 32px 0; font-size:14px; line-height:22px; color:#000000;">
+            <ol style="margin:0; padding:0 0 0 20px;">
+              <li style="margin:0 0 8px 0;">{{STEP_1}}</li>
+              <li style="margin:0 0 8px 0;">{{STEP_2}}</li>
+            </ol>
+          </td>
+        </tr>
+      </table>
+
+      <!-- 6.7 BUTTON (Request type only; one per email) -->
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td bgcolor="#18073a" style="background-color:#18073a; padding:12px 24px;">
+            <a href="{{BUTTON_URL}}" style="font-size:14px; line-height:20px; font-weight:600; color:#ffffff; text-decoration:none; display:inline-block;">{{BUTTON_LABEL e.g. Review the exceptions}}</a>
+          </td>
+        </tr>
+        <tr><td height="32" style="height:32px; line-height:32px; font-size:0;">&nbsp;</td></tr>
+      </table>
+
+      <!-- 6.8 FILES AND LINKS -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="padding:0 0 12px 0; font-size:16px; line-height:24px; font-weight:600; color:#18073a;">Files</td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 8px 0; font-size:14px; line-height:22px; color:#000000;">{{FILE_NAME}} ({{FILE_SIZE}}), attached</td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 8px 0; font-size:14px; line-height:22px; color:#000000;">
+            <a href="{{file://///server/share/path%20with%20spaces/}}" style="color:#29215a; text-decoration:underline;">Open the report folder</a>
+          </td>
+        </tr>
+        <tr>
+          <td bgcolor="#f6f6f5" style="padding:8px 12px; background-color:#f6f6f5; font-family:Consolas, 'Courier New', monospace; font-size:12px; line-height:18px; color:#000000; word-break:break-all;">{{\\server\share\full\path\file.xlsx}}</td>
+        </tr>
+        <tr><td height="32" style="height:32px; line-height:32px; font-size:0;">&nbsp;</td></tr>
+      </table>
+
+      <!-- 6.9 ABOUT THIS REPORT -->
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="padding:0 0 4px 0; font-size:12px; line-height:18px; font-weight:600; color:#4d4777;">About this report</td>
+        </tr>
+        <tr>
+          <td style="padding:0 0 32px 0; font-size:12px; line-height:18px; color:#4d4777;">{{ABOUT: scope, definitions, exclusions, schedule}}</td>
+        </tr>
+      </table>
+
+<!-- ======================== CONTENT END ======================== -->
+
+    </td>
+  </tr>
+
+  <!-- AUTOMATION FOOTER: mandatory, do not edit except {{PROCESS_NAME}} -->
+  <tr>
+    <td style="padding:0 32px 32px 32px;">
+      <table role="presentation" width="576" cellpadding="0" cellspacing="0" border="0" style="width:576px;">
+        <tr>
+          <td style="padding:16px 0 0 0; border-top:1px solid #dededd; font-size:12px; line-height:18px; color:#4d4777;">
+            This email was sent by Inspired Automation. Please do not reply to this email.<br>
+            Should you have any issues, please raise a ticket by emailing <a href="mailto:automation@inspiredenergy.co.uk" style="color:#29215a; text-decoration:underline;">automation@inspiredenergy.co.uk</a>.<br>
+            Process: {{PROCESS_NAME}}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+</table>
+</body>
+</html>

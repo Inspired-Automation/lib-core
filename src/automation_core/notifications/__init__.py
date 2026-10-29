@@ -9,10 +9,11 @@ import traceback
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-# Delimiters wrapping the machine-readable JSON block in the notification body.
-# Downstream automations (e.g. a Power Automate flow that posts to Teams) extract
-# the text between these markers and run it through a Parse JSON action. Keep
-# these exact strings stable — changing them breaks every consuming flow.
+# Delimiters wrapping the machine-readable JSON block in a Freshservice ticket
+# body. Email alerts carried it too until 1.14.0, for a Power Automate flow
+# that posted to Teams; that flow is retired, the alert email is now branded
+# HTML for people, and the Control Room reads cr_errors.json instead. Keep the
+# strings stable while tickets still carry the block.
 META_BEGIN = "---AUTOMATION-META-BEGIN---"
 META_END = "---AUTOMATION-META-END---"
 # Bump when the JSON structure changes so flows can branch on it.
@@ -37,15 +38,16 @@ def dispatch_notification(
     is_critical: bool,
     exc_info: tuple | None = None,
 ) -> None:
-    subject = _build_subject(ctx.process_name, errors.count, is_critical)
-    body = _build_body(ctx, errors, is_critical, exc_info)
-
     config = _get_config()
 
+    # Building the message is inside the try as well as sending it: a bug in
+    # either must never turn a bot's error report into a second crash.
     try:
         if ctx.notification_method == "freshservice":
             from . import freshservice
 
+            subject = _build_subject(ctx.process_name, errors.count, is_critical)
+            body = _build_body(ctx, errors, is_critical, exc_info)
             freshservice.create_ticket(
                 config,
                 subject,
@@ -53,9 +55,24 @@ def dispatch_notification(
                 is_critical=is_critical,
             )
         else:
-            from . import email_graph
+            from . import alert_email, email_graph
 
-            email_graph.send(config, ctx.notification_recipient, subject, body)
+            message = alert_email.build_alert_email(
+                ctx,
+                errors,
+                is_critical=is_critical,
+                exc_info=exc_info,
+                now=datetime.now(tz=timezone.utc),
+                hostname=socket.gethostname(),
+                username=_get_username(),
+            )
+            email_graph.send(
+                config,
+                ctx.notification_recipient,
+                message.subject,
+                message.render(),
+                importance="high",
+            )
     except Exception:
         _fail_msg = "automation_core: notification dispatch failed"
         logging.error(_fail_msg, exc_info=True)
