@@ -108,6 +108,7 @@ ctx = setup("TenderWatcher")
 # ctx.params - dict of run parameters (see 3.4); {} when run without any
 # ctx.job_id - the Control Room job id (see 3.4); None for a hand run
 # ctx.job_file - Path to the --job-file/CR_JOB_FILE job.json; None for a hand run
+# ctx.request_assist(reason, ...) - ask the Control Room for a person (see 3.7)
 ```
 
 `setup()` also accepts an optional `argv` argument (defaulting to `sys.argv[1:]`) used only to locate `--job-file` when reading run params; tests pass it explicitly.
@@ -185,7 +186,8 @@ CLAUDE.md. The library itself stores nothing and applies no sentinel.
 
 `ctx.job_file` is the path to that same job file (`None` for a hand run). It
 is not meant for bots to read directly; it exists so `collect_errors` (§3.2)
-knows where to write the `cr_errors.json` sidecar described in §4.6.
+knows where to write the `cr_errors.json` sidecar described in §4.6, and so
+`ctx.request_assist()` (§3.7) knows where the assist marker files go.
 
 Reading supplied params never fails a run: no `--job-file`, a missing or
 malformed job file, or a non-object `params` value all resolve to `{}` (the
@@ -422,6 +424,70 @@ attachment over 150 MB raises `ValueError`; one over 10 MB logs a warning,
 because the spec says to link to it instead. A rejected request raises
 `requests.HTTPError` carrying Graph's explanation.
 
+## 3.7 Human assist (`ctx.request_assist()`)
+
+Added v1.15.0. Lets a bot ask the Control Room for a person to join its own
+RDP session through noVNC, for the one step it cannot do itself (a captcha is
+the standing example). Needs Control Room agent 0.45.0 or later on the host,
+Human assist installed there, and an interactive bot: a headless job has no
+desktop, so the agent refuses and no URL ever arrives.
+
+```python
+from automation_core import setup, collect_errors
+
+def main():
+    ctx = setup("SupplierPortal")
+    with collect_errors(ctx) as errors:
+        with ctx.request_assist("Solve the captcha on the login page",
+                                timeout_s=900) as assist:
+            wait_for_login_page_to_change()
+        # assist.release has been written; the session is closed
+```
+
+`ctx.request_assist(reason, *, timeout_s=120, wait=True, poll_s=2) -> Assist`
+
+The protocol is the agent's (`agent/vncops.py` in the Control Room repo).
+All three files live in the job directory, the directory of `ctx.job_file`:
+
+| File | Written by | Meaning |
+|------|------------|---------|
+| `assist.request` | bot | Please send a person. JSON `{"reason": "..."}`; the reason is shown on the job page. The agent deletes it when it acts on it. |
+| `assist.json` | agent | The session is live: `{"phase", "url", "reason", "expires_in_s"}`. Deleted by the agent when the assist ends. |
+| `assist.release` | bot | Carry on: the agent ends the session. Optional `{"reason": "..."}`, recorded as why it ended. |
+
+Request and release are separate files because the bot runs as the runner
+account and cannot overwrite or delete a file the agent (LocalSystem) wrote.
+
+- **Entering** writes `assist.request` (via a temp file, so the agent never
+  reads half of one; the reason is flattened to one line and capped at 300
+  characters so the JSON always fits the 4096 bytes the agent reads) and, when
+  `wait` is true, polls for `assist.json` with phase `live` for up to
+  `timeout_s`. The agent notices a request within one progress tick (10
+  seconds by default).
+- **A timeout never raises.** It logs a warning and the block runs: the
+  person can still be reached from the job page once the session starts.
+- **`assist.url`** re-reads `assist.json` on every access and returns the URL
+  only while the phase is `live`, otherwise `None`. `assist.state` is the
+  whole file (or `None`), and `assist.wait_for_url(timeout_s=None)` waits
+  again. The URL is never logged: it carries the per-assist token that is the
+  session's only credential.
+- **Leaving** the block always writes `assist.release`, with
+  `{"reason": "released by the bot after <ExceptionType>"}` when the block
+  raised (the exception still propagates). A request the agent has not
+  consumed is deleted first, so it cannot start a session after the bot has
+  moved on. `assist.release(reason=None)` releases early and is idempotent.
+  Leaving ends the job's assist whoever started it, including one a person
+  opened from the job page.
+- **A release left over from an earlier block** in the same run is cleared
+  before a new request. While the earlier assist is still live (`assist.json`
+  present) the agent consumes it on its next tick, so this waits up to 30
+  seconds for that; otherwise it is deleted, because the agent only reads a
+  release while an assist is live and would end the new one on its first
+  tick.
+- **No job file** (a hand run): every call is a no-op and entering logs one
+  warning, so a developer can run the same code locally. A request that
+  cannot be written logs a warning, skips the wait, and writes no release.
+
 ## 4. Notification Behaviour
 
 ### 4.1 When notifications are sent
@@ -568,6 +634,7 @@ lib-core/
 │   ├── config.py            # Loading team.yaml and config.yaml
 │   ├── logging_setup.py     # Logging configuration
 │   ├── context.py           # Context dataclass
+│   ├── assist.py            # Human assist markers for the Control Room agent (see 3.7)
 │   ├── params.py            # Run-param declarations (params.json) loader/validator
 │   ├── errors.py            # ErrorCollector and collect_errors
 │   ├── email/               # Branded HTML email (see 3.6)

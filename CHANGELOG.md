@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-10-30
+
+### Added
+- `Context.request_assist()`, for a bot that needs a person in its session (a captcha is the standing example), and the `Assist` it returns. It speaks the Control Room agent's human-assist protocol (agent 0.45.0 or later), which every bot had been hand-rolling: write `assist.request` in the job directory, wait for the agent to write `assist.json` with the noVNC URL, write `assist.release` to carry on.
+  - Used as a context manager: `with ctx.request_assist("Solve the captcha on the login page", timeout_s=900) as assist:`. Entering writes the request (JSON `{"reason": ...}`, the shape the agent reads) and, unless `wait=False`, blocks until the session is live. Leaving always writes the release, on an exception too, so nobody is left holding a session for a bot that has given up.
+  - The job directory is the directory of `ctx.job_file`, where `cr_errors.json` already goes.
+  - A URL that does not arrive within `timeout_s` (default 120 seconds) logs a warning and never raises: the person can still be reached from the job page. `assist.url` is read fresh on each access, so a bot can poll it, and `assist.wait_for_url()` waits again.
+  - With no job file (a hand run) it is a no-op with one logged warning, so the same code runs on a developer's machine.
+  - The URL is never logged: it is the credential for the session, and a log file on a share has more readers than the person being asked to help.
+  - A request the agent has not consumed yet is withdrawn on leaving, so it cannot start a session after the bot has moved on, and a release left over from an earlier block in the same run is cleared before a new request, so it cannot end the new session on the agent's first tick.
+
 ## [1.14.0] - 2026-10-29
 
 ### Added
