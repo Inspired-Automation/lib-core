@@ -109,6 +109,7 @@ ctx = setup("TenderWatcher")
 # ctx.job_id - the Control Room job id (see 3.4); None for a hand run
 # ctx.job_file - Path to the --job-file/CR_JOB_FILE job.json; None for a hand run
 # ctx.request_assist(reason, ...) - ask the Control Room for a person (see 3.7)
+# ctx.decide(agent, **inputs) - ask a Control Room decision agent (see 3.8)
 ```
 
 `setup()` also accepts an optional `argv` argument (defaulting to `sys.argv[1:]`) used only to locate `--job-file` when reading run params; tests pass it explicitly.
@@ -488,6 +489,91 @@ account and cannot overwrite or delete a file the agent (LocalSystem) wrote.
   warning, so a developer can run the same code locally. A request that
   cannot be written logs a warning, skips the wait, and writes no release.
 
+## 3.8 Decision agents (`ctx.decide()`)
+
+Added v1.16.0. Lets a bot ask one of the Control Room's decision agents: a
+named question, or a few questions over the same input, with a fixed set of
+options, answered by a decision model (Microsoft-Decision-1 on Foundry)
+through the Control Room. The model picks an option and says how sure it is;
+it generates no text. Needs Control Room agent 0.72.0 or later on the host,
+which writes the Control Room's URL and a job-scoped token into job.json.
+
+```python
+from automation_core import setup, collect_errors, DecisionUnavailable
+
+def main():
+    ctx = setup("SupplierPortal")
+    with collect_errors(ctx) as errors:
+        try:
+            decision = ctx.decide("failure_triage", error_text=text,
+                                  bot=ctx.process_name)
+        except DecisionUnavailable:
+            decision = None          # carry on without it, if the bot can
+        if decision and decision["cause"] == "credentials":
+            ...                      # the Control Room stood behind it
+```
+
+`ctx.decide(agent, inputs=None, /, *, timeout_s=30, **fields) -> Decision`
+
+The keyword arguments are the agent's inputs; `inputs` takes them as a dict
+for a name that clashes with a parameter. Every value must be JSON
+serialisable (`TypeError` otherwise, before anything is sent).
+
+Why through the Control Room rather than a model directly: the credential
+stays on the Control Room, every call is one logged run against the job (the
+inputs, every option's probability, the answer and who asked), and the
+wording, the options and the confidence threshold are edited in the console
+with an audit trail and tested against the agent's labelled examples, not
+shipped inside the bot. The Control Room answers; it never acts on a bot's
+behalf.
+
+The wire protocol is the Control Room's (`/api/v1/decisions/<name>` in
+`control_room/app.py`):
+
+- `POST {cr_url}/api/v1/decisions/{agent}` with `Authorization: Bearer
+  {cr_token}` and body `{"inputs": {...}, "job_id": <job_id>}`. `cr_url` and
+  `cr_token` are read fresh from job.json on every call; the token is the
+  job's own, minted when the job was claimed, dead once the job is terminal
+  and good for nothing but this endpoint. It is never logged, and neither
+  are the inputs.
+- `200`: `{"run_id", "agent", "version", "outcome", "answers": {name:
+  {"kind", "choice", "confidence", "probabilities", "outcome"}}, "model",
+  "error"}`. `outcome` is `decided` (every output decided), `review` (at
+  least one output below the agent's threshold or answered with the
+  built-in "cannot tell") or `error` (the model call failed; the run is still
+  logged). A `noul` output's choice is `yes` or `no`.
+
+**`Decision`**:
+
+- `decision[name]` is the decided choice, or `None` whenever that output was
+  not decided, so `decision["cause"] == "credentials"` is always safe. A name
+  the agent does not have raises `KeyError` (a typo should not read as "not
+  decided"), except when the Control Room reported no answers at all.
+- `decision.answer(name)` is the `Answer`: `kind`, `choice`, `confidence`,
+  `probabilities` (every option's figure) and `outcome`, with `.decided`.
+- `decision.decided`, `decision.choices` (the decided ones), `decision.outcome`,
+  `decision.run_id`, `decision.version`, `decision.model` and `decision.raw`
+  (the whole response).
+
+**`DecisionUnavailable`** (a `RuntimeError`) is raised when no answer could be
+had: no job file (a hand run), a job file without `cr_url`/`cr_token` (an
+agent older than 0.72.0 or a run started outside the Control Room), the
+Decisions kill switch off in the console (503), an unknown or disabled agent
+(404), a refused token or a `job_id` that is not the token's (401), inputs over
+the Control Room's cap (413), bad inputs (400), a read timeout, or the Control
+Room unreachable. The message names the agent and the reason, never the
+token. A bot that can carry on without the decision catches it; one that
+cannot lets it fail the run, which is the right outcome. A hand run is
+therefore not a silent no-op, unlike `request_assist()`: a bot that branches
+on a decision has no sensible branch without one.
+
+- **Retries**: once, on a connection error only (the request never reached
+  the Control Room, so nothing was logged twice). Never on a read timeout
+  (the Control Room may have logged the run) and never on an HTTP status.
+- **Logging**: one info line per call with the agent, the run id, the outcome
+  and the decided choices; a warning when the Control Room reports outcome
+  `error`. The token and the input values never appear in the log.
+
 ## 4. Notification Behaviour
 
 ### 4.1 When notifications are sent
@@ -635,6 +721,7 @@ lib-core/
 │   ├── logging_setup.py     # Logging configuration
 │   ├── context.py           # Context dataclass
 │   ├── assist.py            # Human assist markers for the Control Room agent (see 3.7)
+│   ├── decide.py            # Decision agents over the Control Room API (see 3.8)
 │   ├── params.py            # Run-param declarations (params.json) loader/validator
 │   ├── errors.py            # ErrorCollector and collect_errors
 │   ├── email/               # Branded HTML email (see 3.6)

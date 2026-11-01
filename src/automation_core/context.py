@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .assist import DEFAULT_POLL_S, DEFAULT_TIMEOUT_S, Assist
+from .decide import DEFAULT_TIMEOUT_S as DECIDE_TIMEOUT_S
+from .decide import Decision, decide
 
 
 @dataclass(frozen=True)
@@ -51,3 +55,28 @@ class Context:
         job_dir = self.job_file.parent if self.job_file is not None else None
         return Assist(job_dir, reason, timeout_s=timeout_s, wait=wait,
                       poll_s=poll_s)
+
+    def decide(
+        self,
+        agent: str,
+        inputs: Mapping[str, Any] | None = None,
+        /,
+        *,
+        timeout_s: float = DECIDE_TIMEOUT_S,
+        **fields: Any,
+    ) -> Decision:
+        """Ask one of the Control Room's decision agents and get its answer.
+
+        ``ctx.decide("failure_triage", error_text=text)`` sends the keyword
+        arguments as the agent's inputs (``inputs`` may carry them as a dict
+        instead, for a name that clashes with a parameter). Returns a
+        ``Decision``: ``decision["cause"]`` is the decided choice or None
+        when the Control Room did not stand behind one. Raises
+        ``DecisionUnavailable`` when there is no answer to be had: a hand
+        run, an agent older than 0.72.0, the kill switch off, an unknown
+        agent, a refused token, or the Control Room unreachable. See
+        decide.py.
+        """
+        merged: dict[str, Any] = dict(inputs or {})
+        merged.update(fields)
+        return decide(self.job_file, agent, merged, timeout_s=timeout_s)

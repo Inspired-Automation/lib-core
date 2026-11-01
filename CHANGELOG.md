@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-11-01
+
+### Added
+- `Context.decide()`, the bot side of the Control Room's decision agents (agent 0.72.0 or later): a named question, or a few questions over the same input, with a fixed set of options, answered by a decision model (Microsoft-Decision-1 on Foundry) through the Control Room, so the credential stays central, every call is one logged run against the job, and the wording, options and threshold are edited in the console rather than shipped in the bot.
+  - `decision = ctx.decide("failure_triage", error_text=text)`: the keyword arguments are the agent's inputs (`ctx.decide(name, {...})` takes a dict for a name that clashes with a parameter). One POST to `{cr_url}/api/v1/decisions/{agent}` with the job's own token, both read fresh from job.json, where agent 0.72.0 writes them as `cr_url` and `cr_token`.
+  - `Decision`: `decision["cause"]` is the decided choice or None whenever the Control Room did not stand behind one (below the agent's threshold, the model picked its built-in "cannot tell", or the model call failed), so a bot cannot mistake "ask a person" for an answer and `decision["cause"] == "credentials"` is always safe. `decision.answer("cause")` has the kind (`choice` or `noul`, whose choices are `yes` and `no`), the confidence and every option's probability; `decision.decided`, `decision.choices`, `decision.outcome`, `decision.run_id` and `decision.raw` are there for a bot that wants to make its own call. A typo in an output name raises `KeyError` rather than returning None.
+  - `DecisionUnavailable` is raised when no answer could be had: a hand run (no job file), a job file without `cr_url`/`cr_token` (an agent older than 0.72.0), the Decisions kill switch off in the console (503), an unknown or disabled agent (404), a refused token or a job id that is not the token's (401), inputs over the cap (413), a timeout, or the Control Room unreachable. A bot that can carry on without the decision catches it; one that cannot lets it fail the run. The message names the agent and the reason, never the token.
+  - One retry on a connection error only (the request never reached the Control Room, so nothing was logged twice); never on a read timeout (30 seconds by default, `timeout_s=` to change) or on an HTTP status. One info line per call with the agent, run id, outcome and the decided choices; the token and the inputs are never logged.
+  - Suggestions only: the Control Room answers and never acts on a bot's behalf. What to do with the answer is the bot's decision.
+
 ## [1.15.0] - 2026-10-30
 
 ### Added

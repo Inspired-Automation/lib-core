@@ -53,6 +53,23 @@ with ctx.request_assist("Solve the captcha on the login page", timeout_s=900) as
 
 A slow or missing URL logs a warning and never raises. On a hand run there is no job file, so it logs a warning and does nothing. Pass `wait=False` to return at once and poll `assist.url` yourself. See `lib-core-spec.md` §3.7.
 
+## Asking a decision agent
+
+A bot running under the Control Room can ask one of its decision agents, a named question with fixed options answered by a decision model through the Control Room (1.16.0 or later, agent 0.72.0 or later):
+
+```python
+from automation_core import DecisionUnavailable
+
+try:
+    decision = ctx.decide("failure_triage", error_text=text, bot=ctx.process_name)
+except DecisionUnavailable:
+    decision = None   # hand run, old agent, kill switch off, or unreachable
+if decision and decision["cause"] == "credentials":
+    ...               # decision["cause"] is None when the Control Room was not sure
+```
+
+Every call is logged against the job in the Control Room, which answers but never acts for the bot. `decision.answer("cause")` has the confidence and every option's probability. See `lib-core-spec.md` §3.8.
+
 ## Configuration
 
 Two config files are read at startup:
