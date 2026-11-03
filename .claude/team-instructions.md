@@ -1,4 +1,4 @@
-<!-- Copied from Inspired-Automation/config-cursor-rules at d6ddac2, the
+<!-- Copied from Inspired-Automation/config-cursor-rules at b029a53, the
 same team instructions Cursor loads from
 .cursor/rules/team-instructions.mdc in this repo. Two copies exist
 because the two editors load rules differently: Cursor reads .mdc files
@@ -32,8 +32,8 @@ These instructions apply to all AI-assisted work within the BPI Automation Team.
 |-----------------|----------------------|--------|-------------------------------------|
 | Sugar           | `DSN=Sugar Corp`     | MySQL  | SugarCRM (live)                     |
 | Jupiter         | `DSN=Jupiter`        | MSSQL  | Jupiter on `emdb` (live)            |
-| Titan (DEV)     | `DSN=Titan_INSE_DEV` | MSSQL  | Development environment for Titan; new tables are built and tested here first |
-| Titan (PROD)    | `DSN=Titan_INSE`     | MSSQL  | Production environment for Titan    |
+| Titan (DEV)     | `DSN=Titan Dev`      | MSSQL  | Development environment for Titan; new tables are built and tested here first |
+| Titan (PROD)    | `DSN=Titan Prod`     | MSSQL  | Production environment for Titan    |
 
 Everything other than Sugar is MSSQL by default. New tables and schema changes are always built first against `Titan_INSE_DEV`. They are only promoted to `Titan_INSE` (PROD) via a migration script, see Section 4 below. If a new database is introduced, ask the user for the DSN and engine type and record it in CLAUDE.md.
 
@@ -362,7 +362,8 @@ Emails are the exception: the email design spec that ships with `automation_core
 ## 12. Agent Behaviour
 
 - Ask clarifying questions before making assumptions, especially about data shape, business rules, recipient lists, and target environments.
-- **Never execute terminal commands or SQL statements automatically.** Always show what you intend to run and wait for the user to confirm.
+- Run commands as needed; the permission system decides what needs approval. Say what you ran and what it showed.
+- **Before anything that writes to a production database, by any route (including a Python script or a "dry run"), show the statement and the target and wait for a clear yes.** A dry run must be provably read-only: prefer a `SELECT` of what would change, and never rely on `with conn:` or `with conn.cursor():` in `pyodbc`, which commit on exit.
 - For multi-step tasks, summarise the full plan before starting, and check in with the user at meaningful milestones.
 - If the user provides a working query, script, or pattern, treat it as the canonical style for that project.
 - If unsure which DSN, schema, or table to use, ask rather than guess.
